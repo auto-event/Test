@@ -1013,7 +1013,7 @@
         title: title,
         date: "", time: "",
         description: descLines.join("\n") + (hashtags.length ? "\n\n" + hashtags.join(" ") : ""),
-        chatMessage: chatLines.join("\n").slice(0, 1000),   // kolom N (index 13) -> komen pertama (commentThreads), batas 1000 karakter
+        chatMessage: chatLines.join("\n").slice(0, 200),   // batas 200 karakter per pesan live chat YouTube
         liveChatId: null, chatSent: false,
         privacy: privacy,
         tags: hashtags.map(function(h){ return h.replace(/^#+/, ""); }).filter(Boolean).join(","),
@@ -1145,8 +1145,6 @@
       var time = String(lower.time || "").trim().slice(0, 5);
       var privacyRaw = String(lower.privacy || "private").toLowerCase();
       var privacy = ["public", "private", "unlisted"].indexOf(privacyRaw) !== -1 ? privacyRaw : "private";
-      // Kolom N / firstComment / comment / komen -> jadi komen pertama (commentThreads) - bisa dipakai untuk format header juga
-      var firstCommentRaw = lower.firstcomment || lower.comment || lower.komen || lower['kolom n'] || lower['col n'] || "";
       return {
         _id: genId(),
         title: String(lower.title || "").trim(),
@@ -1155,9 +1153,6 @@
         description: String(lower.description || "").trim(),
         privacy: privacy,
         tags: String(lower.tags || "").trim(),
-        chatMessage: String(firstCommentRaw || "").trim().slice(0, 1000),
-        liveChatId: null,
-        chatSent: false,
         status: "ready",
         message: "",
         videoId: null,
@@ -1245,17 +1240,15 @@
     });
   }
   // Baris live yang sudah jadi jadwal, punya teks chat + liveChatId, tapi belum pernah terkirim ke chat.
-  // Baris yang sudah jadi jadwal/video, punya teks chat (kolom N) + videoId, tapi belum pernah terkirim sebagai komen pertama.
-  // KOMEN THREAD bisa dikirim saat status masih upcoming, tidak perlu tunggu live.
   function rowsNeedingChat(){
     return events.filter(function(r){
-      return r.status === "sukses" && r.videoId && r.chatMessage && !r.chatSent;
+      return r.mode === "live" && r.status === "sukses" && r.videoId && r.liveChatId && r.chatMessage && !r.chatSent;
     });
   }
   function updateSendChatBtn(){
     var n = rowsNeedingChat().length;
     el.sendChatBtn.style.display = n ? "block" : "none";
-    el.sendChatBtn.textContent = "Kirim Komen Pertama Kolom N (" + n + ")";
+    el.sendChatBtn.textContent = "Kirim Link ke Live Chat (" + n + ")";
   }
   function updateFixThumbsBtn(){
     var n = rowsNeedingThumbFix().length;
@@ -1510,7 +1503,7 @@
       try {
         tokenClients[cid] = google.accounts.oauth2.initTokenClient({
           client_id: cid,
-          scope: "https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
           callback: function(resp){
             if (resp.access_token){
               // Hasil dari percobaan perpanjangan otomatis (silent, prompt:"")?
@@ -2209,27 +2202,9 @@
     }).catch(function(e){ cb({ ok: false, error: e.message || String(e) }); });
   }
 
-  // Kirim 1 komen pertama sebagai COMMENT THREADS (bisa saat masih upcoming, tidak perlu tunggu live).
-  // Kolom N (index 13) dari Excel/CSV jadi komen pertama. Biaya 50 unit.
+  // Kirim 1 pesan ke live chat (liveChatMessages.insert, 50 unit). Hanya bisa saat broadcast SUDAH live/testing:
+  // selagi masih "upcoming", YouTube menolak dengan liveChatNotFound / liveChatDisabled.
   function sendChatMessage(row, token, cb){
-    if (!row.chatMessage){ cb({ ok: false, error: "Tidak ada teks komen di kolom N / firstComment" }); return; }
-    if (!row.videoId){ cb({ ok: false, error: "videoId belum ada (buat jadwal dulu)" }); return; }
-    fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-      body: JSON.stringify({ snippet: { videoId: row.videoId, topLevelComment: { snippet: { textOriginal: row.chatMessage } } } })
-    }).then(function(r){
-      return r.text().then(function(t){
-        if (r.ok){ cb({ ok: true }); return; }
-        var cls = classifyApiError(r.status, t);
-        var hint = /commentsDisabled|comment.*disabled/i.test(t) ? "Komentar dimatikan di video/channel ini. Aktifkan komentar dulu di YouTube Studio. " : "";
-        cb({ ok: false, quotaExceeded: cls.quota, authExpired: cls.auth, error: hint + "Gagal kirim komen (" + r.status + "): " + t.slice(0, 300) });
-      });
-    }).catch(function(e){ cb({ ok: false, error: e.message || String(e) }); });
-  }
-
-  // Backup: kirim ke live chat (dipakai kalau mau live chat, bukan komen). Tetap disimpan biar kompatibel.
-  function sendLiveChatMessage(row, token, cb){
     if (!row.chatMessage){ cb({ ok: false, error: "Tidak ada teks chat di baris ini" }); return; }
     if (!row.liveChatId){ cb({ ok: false, error: "liveChatId belum ada (buat jadwal live dulu)" }); return; }
     fetch("https://www.googleapis.com/youtube/v3/liveChat/messages?part=snippet", {
@@ -2273,21 +2248,21 @@
     tryOnce();
   }
 
-  // Kirim KOMEN PERTAMA (commentThreads) untuk baris yang sudah jadi jadwal/video.
-  // Kolom N (index 13) -> jadi komen pertama. Bisa dikirim saat masih upcoming, tidak perlu tunggu live.
-  // Tiap kirim = 50 unit kuota.
+  // Kirim link "Watch Live Stream" ke LIVE CHAT untuk baris yang sudah jadi jadwal live.
+  // PENTING: hanya berhasil kalau streamnya SUDAH dimulai (status live/testing). Baris yang gagal karena chat belum aktif
+  // TIDAK ditandai terkirim, jadi bisa diklik ulang nanti setelah stream jalan. Tiap kirim = 50 unit kuota.
   function sendPendingChats(){
     if (running){ showToast("Tunggu proses upload selesai dulu"); return; }
     var rows = rowsNeedingChat();
-    if (!rows.length){ showToast("Tidak ada komen pertama (kolom N) yang perlu dikirim"); return; }
+    if (!rows.length){ showToast("Tidak ada pesan chat yang perlu dikirim"); return; }
     var sent = 0, failed = 0, noAcc = 0, notLive = 0, i = 0;
-    log("Mulai kirim komen pertama (kolom N) untuk " + rows.length + " event...", "info");
+    log("Mulai kirim link ke live chat untuk " + rows.length + " event (stream harus sudah dimulai)...", "info");
     el.sendChatBtn.disabled = true;
     function next(){
       if (i >= rows.length){
         el.sendChatBtn.disabled = false;
-        log("Selesai kirim komen: " + sent + " terkirim, " + failed + " gagal, " + noAcc + " butuh login akun dulu.", sent ? "success" : "error");
-        showToast(sent + " komen pertama terkirim" + (failed ? ", " + failed + " gagal" : ""));
+        log("Selesai kirim chat: " + sent + " terkirim, " + notLive + " belum live, " + failed + " gagal, " + noAcc + " butuh login akun dulu.", sent ? "success" : "error");
+        showToast(sent + " chat terkirim" + (notLive ? ", " + notLive + " belum live" : ""));
         renderEventsTable();
         renderClientIds();
         return;
@@ -2615,24 +2590,7 @@
             acc.usedCount++;
             acc.usedDay = pacificDateKey();
             addClientQuotaUsage(acc.clientId, appMode, res.unitsUsed);
-            persistAccounts();
-            // AUTO KIRIM KOMEN PERTAMA (kolom N) setelah videoId jadi - tidak perlu klik tombol manual lagi
-            if (row.chatMessage && row.videoId){
-              (function(r, tokenCopy, clientIdCopy){
-                setTimeout(function(){
-                  sendChatMessage(r, tokenCopy, function(cRes){
-                    addClientQuotaUsage(clientIdCopy, "live", COST.live.chat);
-                    if (cRes.ok){
-                      r.chatSent = true;
-                      log("✓ Auto komen terkirim: " + r.title + " -> " + r.chatMessage.slice(0,80), "success");
-                    } else {
-                      log("✗ Auto komen gagal \"" + r.title + "\": " + cRes.error + " (bisa kirim manual via tombol)", "error");
-                    }
-                    renderEventsTable();
-                  });
-                }, 1500); // delay 1.5 detik biar YouTube siap
-              })(row, acc.token, acc.clientId);
-            }   // simpan usedCount terbaru (bukan token) supaya kalau refresh, hitungan ini ikut kepulihkan
+            persistAccounts();   // simpan usedCount terbaru (bukan token) supaya kalau refresh, hitungan ini ikut kepulihkan
             log("✓ SUKSES" + (appMode === "live" ? " (jadwal live)" : "") + " via " + (acc.channelTitle || acc.email) + ": " + row.title + " -> id " + res.videoId +
                 (res.unitsUsed ? " (" + res.unitsUsed + " unit)" : ""), "success");
             if (res.warnings && res.warnings.length) log("  ⚠ Catatan: " + res.warnings.join("; "), "error");
