@@ -169,7 +169,7 @@
         <div class="note-box" style="margin-top:10px;">
           <b>Kuota YouTube dihitung per Client ID (per project Google Cloud), bukan per akun.</b> Menurut dokumentasi Google (diperbarui 15 Sep 2026),
           tiap project mendapat <b>100 upload video/hari</b> (bucket sendiri, 1 unit/upload) dan <b>10.000 unit/hari</b> untuk method lain
-          (jadwal live 50 unit, thumbnail 50 unit, update tag 50 unit).
+          (jadwal live 50 unit, thumbnail 50 unit, update tag 50 unit, komentar pertama 50 unit).
           Menambah akun di Client ID yang sama <b>tidak</b> menambah kuota; menambah <b>Client ID dari project berbeda</b> yang menambah kuota.
           Kalau Client ID masih status <b>Testing</b>, tiap akun yang dipakai wajib didaftarkan di <b>Audience &rarr; Test users</b> project itu.
         </div>
@@ -231,7 +231,7 @@
       <div class="note-box" style="margin-top:14px;">
         <b>Format tanpa header (otomatis dikenali):</b> tiap baris = 1 event. Kolom pertama = judul; kolom berlabel
         <code class="inline">Date:</code> dan <code class="inline">Time:</code> (mis. <i>Saturday, Sep 19, 2026</i> dan <i>4:00 PM CDT</i>) dibaca sebagai jadwal
-        dibaca apa adanya beserta zona waktunya (jam tidak diubah; YouTube tetap menerima waktu yang tepat); kolom lain jadi deskripsi; kolom berawalan <code class="inline">#</code> jadi hashtag dan tags.<br>
+        dibaca apa adanya beserta zona waktunya (jam tidak diubah; YouTube tetap menerima waktu yang tepat); kolom lain jadi deskripsi; kolom berawalan <code class="inline">#</code> jadi hashtag dan tags; <b>kolom ke-14 (N)</b> otomatis dipisah jadi <b>komentar pertama</b> di video (bukan ikut deskripsi, bukan live chat) &mdash; diposting otomatis begitu event berhasil dibuat.<br>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">Privacy untuk format ini:
           <select id="newFormatPrivacy" style="width:auto;padding:8px;">
             <option value="private">private</option>
@@ -316,7 +316,7 @@
         </div>
 
         <button class="btn-ghost" id="fixThumbsBtn" style="display:none;width:100%;margin-bottom:14px;">Perbaiki Thumbnail Gagal</button>
-        <button class="btn-ghost" id="sendChatBtn" style="display:none;width:100%;margin-bottom:14px;">Kirim Link ke Live Chat</button>
+        <button class="btn-ghost" id="fixCommentsBtn" style="display:none;width:100%;margin-bottom:14px;">Perbaiki Komentar Gagal</button>
 
         <div style="margin-bottom:14px; display:none;" id="progressWrap">
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;">
@@ -454,8 +454,8 @@
   // ---- MODE: "video" (videos.insert) atau "live" (liveBroadcasts.insert) ----
   // Biaya per event menurut https://developers.google.com/youtube/v3/determine_quota_cost (diperbarui 15 Sep 2026):
   //   video : videos.insert = 1 unit dari bucket SENDIRI 100/hari (tidak memakai 10.000 unit)
-  //   live  : liveBroadcasts.insert 50 + thumbnails.set 50 + videos.update (tag) 50 = 150 unit dari 10.000 unit bersama
-  var COST = { live: { insert: 50, thumb: 50, tags: 50, chat: 50 }, DAILY_UNITS: 10000, VIDEO_BUCKET: 100 };
+  //   live  : liveBroadcasts.insert 50 + thumbnails.set 50 + videos.update (tag) 50 + commentThreads.insert 50 = 200 unit dari 10.000 unit bersama (kalau ada komentar)
+  var COST = { live: { insert: 50, thumb: 50, tags: 50, comment: 50 }, DAILY_UNITS: 10000, VIDEO_BUCKET: 100 };
   // videos.update MENIMPA seluruh snippet dan mewajibkan categoryId. Agar kategori tidak berubah diam-diam, nilai yang SAMA
   // dikirim saat membuat broadcast (snippet.categoryId boleh diisi di liveBroadcasts.insert) dan saat update tag.
   var LIVE_CATEGORY_ID = "22";   // 22 = People & Blogs
@@ -487,9 +487,9 @@
     if (mode === "live") q.liveUnits += (unitsUsed || 0); else q.videoSlots += 1;
     persistClientQuota();
   }
-  var LIVE_EVENT_COST = COST.live.insert + COST.live.thumb + COST.live.tags;   // 150
+  var LIVE_EVENT_COST = COST.live.insert + COST.live.thumb + COST.live.tags + COST.live.comment;   // 200 (asumsi tiap event juga post komentar)
   function eventsPerDayPerClient(mode){
-    return mode === "live" ? Math.floor(COST.DAILY_UNITS / LIVE_EVENT_COST) : COST.VIDEO_BUCKET;   // 66 vs 100
+    return mode === "live" ? Math.floor(COST.DAILY_UNITS / LIVE_EVENT_COST) : COST.VIDEO_BUCKET;   // 50 vs 100
   }
   var LS_MODE = "yt_csv_mode";
   var appMode = (function(){ try { var m = localStorage.getItem("yt_csv_mode"); return m === "live" ? "live" : "video"; } catch (e){ return "video"; } })();
@@ -554,7 +554,7 @@
     clearLogBtn: document.getElementById("clearLogBtn"),
     downloadLogBtn: document.getElementById("downloadLogBtn"),
     fixThumbsBtn: document.getElementById("fixThumbsBtn"),
-    sendChatBtn: document.getElementById("sendChatBtn"),
+    fixCommentsBtn: document.getElementById("fixCommentsBtn"),
     restoreBanner: document.getElementById("restoreBanner"),
 
     downloadTemplateBtn: document.getElementById("downloadTemplateBtn"),
@@ -607,7 +607,7 @@
     el.modeLiveBtn.className = live ? "btn-white" : "btn-ghost";
     el.modeNote.innerHTML = live
       ? '<b>Mode Jadwal Live.</b> Yang dibuat adalah <b>halaman event live terjadwal</b> (judul, deskripsi, tag, thumbnail), <b>bukan video</b>. Tidak ada yang tayang otomatis: konten baru ada kalau kamu benar-benar siaran. ' +
-        'Biaya per event <b>150 unit</b> (jadwal 50 + thumbnail 50 + tag 50) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
+        'Biaya per event <b>150-200 unit</b> (jadwal 50 + thumbnail 50 + tag 50, +50 lagi kalau ada komentar pertama dari kolom N) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
         '<b>Syarat:</b> live streaming harus <b>aktif</b> di channel (verifikasi telepon, aktivasi pertama bisa sampai 24 jam) dan channel harus terverifikasi untuk thumbnail. ' +
         'Jadwal harus di masa depan dan &ldquo;cukup dekat&rdquo; (batas Google tidak dipublikasikan, kalau ditolak coba tanggal lebih dekat). Render video tidak dipakai.'
       : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 5 detik lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
@@ -982,8 +982,8 @@
     return !(cells || []).some(function(c){ return String(c).trim() !== ""; });
   }
 
-  // Kolom yang isinya dikirim ke live chat (bukan deskripsi). A=0, B=1, ... N=13.
-  var CHAT_COL_INDEX = 13;
+  // Kolom yang isinya dikirim jadi KOMENTAR PERTAMA di video (bukan deskripsi, bukan live chat). A=0, B=1, ... N=13.
+  var COMMENT_COL_INDEX = 13;
 
   // arrays = array of array (sel per baris). Hasil: { rows:[...objek standar...], problems:[...] }
   function parseHeaderlessRows(arrays){
@@ -994,7 +994,7 @@
       var n = idx + 1;
       var vals = cells.map(function(c){ return String(c == null ? "" : c).trim(); });
       var title = vals[0] || "";
-      var dateText = null, timeText = null, hashtags = [], descLines = [], chatLines = [];
+      var dateText = null, timeText = null, hashtags = [], descLines = [], commentLines = [];
       vals.forEach(function(v, ci){
         if (!v || ci === 0) return;
         if (v === title) return;                        // kolom judul yang diulang
@@ -1003,9 +1003,9 @@
         if (d !== null && dateText === null){ dateText = d; return; }
         if (t !== null && timeText === null){ timeText = t; return; }
         if (v.charAt(0) === "#"){ hashtags.push(v.split(/\s+/)[0]); return; }
-        // Kolom N (kolom ke-14, indeks 13) -> masuk LIVE CHAT, BUKAN deskripsi. Kolom lain (termasuk kolom C
-        // "Watch Live Stream" yang isinya kosong) tetap masuk deskripsi APA ADANYA sesuai file.
-        if (ci === CHAT_COL_INDEX){ chatLines.push(v); return; }
+        // Kolom N (kolom ke-14, indeks 13) -> masuk KOMENTAR PERTAMA video, BUKAN deskripsi. Kolom lain (termasuk
+        // kolom C "Watch Live Stream" yang isinya kosong) tetap masuk deskripsi APA ADANYA sesuai file.
+        if (ci === COMMENT_COL_INDEX){ commentLines.push(v); return; }
         descLines.push(v);
       });
       var row = {
@@ -1013,8 +1013,8 @@
         title: title,
         date: "", time: "",
         description: descLines.join("\n") + (hashtags.length ? "\n\n" + hashtags.join(" ") : ""),
-        chatMessage: chatLines.join("\n").slice(0, 200),   // batas 200 karakter per pesan live chat YouTube
-        liveChatId: null, chatSent: false,
+        commentText: commentLines.join("\n").slice(0, 9000),   // batas komentar YouTube ~10.000 karakter
+        commentPosted: false,
         privacy: privacy,
         tags: hashtags.map(function(h){ return h.replace(/^#+/, ""); }).filter(Boolean).join(","),
         status: "ready", message: "", videoId: null, _pastDate: false, _invalid: false
@@ -1239,16 +1239,16 @@
       return r.mode === "live" && r.status === "sukses" && r.videoId && r.message && /thumbnail/i.test(r.message);
     });
   }
-  // Baris live yang sudah jadi jadwal, punya teks chat + liveChatId, tapi belum pernah terkirim ke chat.
-  function rowsNeedingChat(){
+  // Baris live sukses yang ada teks komentar (kolom N) tapi komentarnya GAGAL ke-post otomatis (kena rate limit/error).
+  function rowsNeedingCommentFix(){
     return events.filter(function(r){
-      return r.mode === "live" && r.status === "sukses" && r.videoId && r.liveChatId && r.chatMessage && !r.chatSent;
+      return r.mode === "live" && r.status === "sukses" && r.videoId && r.commentText && !r.commentPosted;
     });
   }
-  function updateSendChatBtn(){
-    var n = rowsNeedingChat().length;
-    el.sendChatBtn.style.display = n ? "block" : "none";
-    el.sendChatBtn.textContent = "Kirim Link ke Live Chat (" + n + ")";
+  function updateFixCommentsBtn(){
+    var n = rowsNeedingCommentFix().length;
+    el.fixCommentsBtn.style.display = n ? "block" : "none";
+    el.fixCommentsBtn.textContent = "Perbaiki Komentar Gagal (" + n + ")";
   }
   function updateFixThumbsBtn(){
     var n = rowsNeedingThumbFix().length;
@@ -1259,7 +1259,7 @@
   function renderEventsTable(){
     saveState();
     updateFixThumbsBtn();
-    updateSendChatBtn();
+    updateFixCommentsBtn();
     if (events.length === 0){
       el.emptyState.style.display = "block";
       el.eventsArea.style.display = "none";
@@ -2139,8 +2139,8 @@
         }
         var bc; try { bc = JSON.parse(txt); } catch (e){ cb({ ok: false, error: "Response broadcast bukan JSON valid" }); return; }
         var videoId = bc.id;   // id broadcast = id video di YouTube
-        var liveChatId = (bc.snippet && bc.snippet.liveChatId) || null;   // dipakai nanti utk kirim pesan ke live chat
         var warnings = [];
+        var commentOk = null;   // null = tidak ada komentar buat baris ini; true/false = hasil posting komentar
 
         // ---- tahap 2: thumbnail (retry otomatis kalau kena rate limit 429, burst limit thumbnails.set beda dari kuota harian) ----
         var stepThumb = function(next){
@@ -2195,28 +2195,44 @@
           }).catch(function(e){ warnings.push("tag: " + (e.message || e)); next(); });
         };
 
-        stepThumb(function(){ stepTags(function(){
-          cb({ ok: true, videoId: videoId, liveChatId: liveChatId, warnings: warnings, unitsUsed: costUsed, error: warnings.length ? warnings.join("; ") : null });
-        }); });
-      });
-    }).catch(function(e){ cb({ ok: false, error: e.message || String(e) }); });
-  }
+        // ---- tahap 4: komentar pertama di video (commentThreads.insert, kolom N di CSV/XLSX tanpa header).
+        // Beda dari live chat: komentar video BISA langsung diposting begitu video/broadcast dibuat, TIDAK perlu
+        // nunggu stream benar-benar live. Retry otomatis kalau kena rate limit 429 (sama seperti thumbnail).
+        var stepComment = function(next){
+          if (!row.commentText){ next(); return; }
+          var attempt = 0, MAX_ATTEMPTS = 3;
+          var tryOnce = function(){
+            attempt++;
+            fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
+              method: "POST",
+              headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
+              body: JSON.stringify({ snippet: { videoId: videoId, topLevelComment: { snippet: { textOriginal: row.commentText } } } })
+            }).then(function(r){
+              costUsed += COST.live.comment;
+              if (r.ok){ commentOk = true; next(); return; }
+              return r.text().then(function(t){
+                if (r.status === 429 && attempt < MAX_ATTEMPTS){
+                  var delayMs = attempt === 1 ? 4000 : 10000;
+                  log("⏳ Komentar kena rate limit (429) untuk \"" + row.title + "\", coba lagi otomatis dalam " + (delayMs / 1000) + " detik (percobaan " + (attempt + 1) + "/" + MAX_ATTEMPTS + ")...", "info");
+                  setTimeout(tryOnce, delayMs);
+                  return;
+                }
+                var c4 = classifyApiError(r.status, t);
+                commentOk = false;
+                if (c4.quota) warnings.push("komentar: kuota habis");
+                else if (r.status === 403) warnings.push("komentar ditolak (403, kolom komentar video ini mungkin dimatikan)");
+                else if (r.status === 429) warnings.push("komentar masih kena rate limit (429) setelah " + MAX_ATTEMPTS + "x coba");
+                else warnings.push("komentar gagal (" + r.status + ")");
+                next();
+              });
+            }).catch(function(e){ commentOk = false; warnings.push("komentar: " + (e.message || e)); next(); });
+          };
+          tryOnce();
+        };
 
-  // Kirim 1 pesan ke live chat (liveChatMessages.insert, 50 unit). Hanya bisa saat broadcast SUDAH live/testing:
-  // selagi masih "upcoming", YouTube menolak dengan liveChatNotFound / liveChatDisabled.
-  function sendChatMessage(row, token, cb){
-    if (!row.chatMessage){ cb({ ok: false, error: "Tidak ada teks chat di baris ini" }); return; }
-    if (!row.liveChatId){ cb({ ok: false, error: "liveChatId belum ada (buat jadwal live dulu)" }); return; }
-    fetch("https://www.googleapis.com/youtube/v3/liveChat/messages?part=snippet", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-      body: JSON.stringify({ snippet: { liveChatId: row.liveChatId, type: "textMessageEvent", textMessageDetails: { messageText: row.chatMessage } } })
-    }).then(function(r){
-      return r.text().then(function(t){
-        if (r.ok){ cb({ ok: true }); return; }
-        var cls = classifyApiError(r.status, t);
-        var hint = /liveChatNotFound|liveChatDisabled|liveChatEnded/i.test(t) ? "Live chat belum aktif: stream harus sudah dimulai (status live/testing). " : "";
-        cb({ ok: false, quotaExceeded: cls.quota, authExpired: cls.auth, error: hint + "Gagal kirim chat (" + r.status + "): " + t.slice(0, 160) });
+        stepThumb(function(){ stepTags(function(){ stepComment(function(){
+          cb({ ok: true, videoId: videoId, commentPosted: commentOk === true, warnings: warnings, unitsUsed: costUsed, error: warnings.length ? warnings.join("; ") : null });
+        }); }); });
       });
     }).catch(function(e){ cb({ ok: false, error: e.message || String(e) }); });
   }
@@ -2248,21 +2264,20 @@
     tryOnce();
   }
 
-  // Kirim link "Watch Live Stream" ke LIVE CHAT untuk baris yang sudah jadi jadwal live.
-  // PENTING: hanya berhasil kalau streamnya SUDAH dimulai (status live/testing). Baris yang gagal karena chat belum aktif
-  // TIDAK ditandai terkirim, jadi bisa diklik ulang nanti setelah stream jalan. Tiap kirim = 50 unit kuota.
-  function sendPendingChats(){
+  // Coba lagi post komentar utk baris yang sudah sukses jadi jadwal live tapi komentarnya gagal ke-post otomatis
+  // (kena rate limit/dll saat pembuatan event). TIDAK bikin ulang jadwal live-nya, videoId lama dipakai lagi.
+  function retryFailedComments(){
     if (running){ showToast("Tunggu proses upload selesai dulu"); return; }
-    var rows = rowsNeedingChat();
-    if (!rows.length){ showToast("Tidak ada pesan chat yang perlu dikirim"); return; }
-    var sent = 0, failed = 0, noAcc = 0, notLive = 0, i = 0;
-    log("Mulai kirim link ke live chat untuk " + rows.length + " event (stream harus sudah dimulai)...", "info");
-    el.sendChatBtn.disabled = true;
+    var rows = rowsNeedingCommentFix();
+    if (!rows.length){ showToast("Tidak ada komentar yang perlu diperbaiki"); return; }
+    var fixed = 0, failed = 0, noAcc = 0, i = 0;
+    log("Mulai perbaiki komentar untuk " + rows.length + " event...", "info");
+    el.fixCommentsBtn.disabled = true;
     function next(){
       if (i >= rows.length){
-        el.sendChatBtn.disabled = false;
-        log("Selesai kirim chat: " + sent + " terkirim, " + notLive + " belum live, " + failed + " gagal, " + noAcc + " butuh login akun dulu.", sent ? "success" : "error");
-        showToast(sent + " chat terkirim" + (notLive ? ", " + notLive + " belum live" : ""));
+        el.fixCommentsBtn.disabled = false;
+        log("Selesai perbaiki komentar: " + fixed + " berhasil, " + failed + " masih gagal, " + noAcc + " butuh login akun dulu.", fixed ? "success" : "error");
+        showToast(fixed + " komentar diperbaiki" + (failed || noAcc ? ", " + (failed + noAcc) + " belum" : ""));
         renderEventsTable();
         renderClientIds();
         return;
@@ -2276,21 +2291,37 @@
         noAcc++; i++; next();
         return;
       }
-      sendChatMessage(row, acc.token, function(res){
-        addClientQuotaUsage(acc.clientId, "live", COST.live.chat);
-        if (res.ok){
-          row.chatSent = true;
-          log("✓ Chat terkirim: " + row.title, "success");
-          sent++;
+      postCommentWithRetry(row.videoId, acc.token, row.commentText, row.title, function(err){
+        addClientQuotaUsage(acc.clientId, "live", COST.live.comment);
+        if (err){
+          log("✗ Komentar \"" + row.title + "\" masih gagal: " + err, "error");
+          failed++;
         } else {
-          if (/belum aktif/i.test(res.error || "")) notLive++; else failed++;
-          log("✗ Chat \"" + row.title + "\": " + res.error, "error");
+          row.commentPosted = true;
+          log("✓ Komentar berhasil diposting: " + row.title, "success");
+          fixed++;
         }
         i++;
         setTimeout(next, 1200);
       });
     }
     next();
+  }
+
+  // Post 1 komentar ke video yang sudah ada (dipakai fitur "Perbaiki Komentar Gagal"), tanpa retry-loop 429
+  // internal (kesempatan retry manual ada di tombolnya sendiri, dipanggil lagi kalau user klik ulang).
+  function postCommentWithRetry(videoId, token, text, title, cb){
+    fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ snippet: { videoId: videoId, topLevelComment: { snippet: { textOriginal: text } } } })
+    }).then(function(r){
+      if (r.ok){ cb(null); return; }
+      return r.text().then(function(t){
+        var c = classifyApiError(r.status, t);
+        cb(c.quota ? "kuota habis" : (r.status === 403 ? "ditolak (403, kolom komentar video ini mungkin dimatikan)" : "gagal (" + r.status + ")"));
+      });
+    }).catch(function(e){ cb(e.message || String(e)); });
   }
 
   // Perbaiki thumbnail utk baris yang sudah sukses jadi jadwal live tapi thumbnail-nya gagal ke-set sebelumnya.
@@ -2583,7 +2614,7 @@
           } else if (res.ok){
             row.status = "sukses";
             row.videoId = res.videoId;
-            if (res.liveChatId) row.liveChatId = res.liveChatId;
+            if (res.commentPosted) row.commentPosted = true;
             row.message = appMode === "live" ? (res.warnings && res.warnings.length ? "Jadwal live dibuat, tapi: " + res.warnings.join("; ") : "Jadwal live dibuat") : "Sukses diupload";
             row.uploadedVia = acc.channelTitle || acc.email;
             row.mode = appMode;
@@ -2709,7 +2740,7 @@
   });
   el.downloadLogBtn.addEventListener("click", downloadLog);
   el.fixThumbsBtn.addEventListener("click", retryFailedThumbnails);
-  el.sendChatBtn.addEventListener("click", sendPendingChats);
+  el.fixCommentsBtn.addEventListener("click", retryFailedComments);
   el.downloadTemplateBtn.addEventListener("click", downloadCsvTemplate);
 
   // ================= INIT =================
