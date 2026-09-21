@@ -938,13 +938,6 @@
     var m = String(cell).match(re);
     return m ? m[1].trim() : null;
   }
-  // Varian untuk label yang emojinya ada DI TENGAH sebelum titik dua, mis. "Watch Live Stream 📺: https://..."
-  // (cellLabelValue di atas hanya menerima emoji di DEPAN label, jadi tidak cocok untuk kasus ini).
-  function cellLabelValueLoose(cell, label){
-    var re = new RegExp("^[^A-Za-z0-9#]*" + label + "[^A-Za-z0-9:]*:\\s*(.*)$", "i");
-    var m = String(cell).match(re);
-    return m ? m[1].trim() : null;
-  }
   function pad2(n){ return (n < 10 ? "0" : "") + n; }
 
   // Kembalikan { date:"YYYY-MM-DD", time:"HH:mm" (24 jam, sesuai file), tz:"-05:00", label:"CDT" }, atau { error:"..." }
@@ -989,6 +982,9 @@
     return !(cells || []).some(function(c){ return String(c).trim() !== ""; });
   }
 
+  // Kolom yang isinya dikirim ke live chat (bukan deskripsi). A=0, B=1, ... N=13.
+  var CHAT_COL_INDEX = 13;
+
   // arrays = array of array (sel per baris). Hasil: { rows:[...objek standar...], problems:[...] }
   function parseHeaderlessRows(arrays){
     var rows = [], problems = [];
@@ -1007,9 +1003,9 @@
         if (d !== null && dateText === null){ dateText = d; return; }
         if (t !== null && timeText === null){ timeText = t; return; }
         if (v.charAt(0) === "#"){ hashtags.push(v.split(/\s+/)[0]); return; }
-        // "Watch Live Stream: <link>" -> masuk LIVE CHAT, bukan deskripsi. Label tanpa isi (sel kosong) dibuang.
-        var ws = cellLabelValueLoose(v, "Watch Live Stream");
-        if (ws !== null){ if (ws) chatLines.push(v.replace(/^[^A-Za-z0-9#]*/, "")); return; }
+        // Kolom N (kolom ke-14, indeks 13) -> masuk LIVE CHAT, BUKAN deskripsi. Kolom lain (termasuk kolom C
+        // "Watch Live Stream" yang isinya kosong) tetap masuk deskripsi APA ADANYA sesuai file.
+        if (ci === CHAT_COL_INDEX){ chatLines.push(v); return; }
         descLines.push(v);
       });
       var row = {
