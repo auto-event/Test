@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Jhony v5.0</h1>
+        <h1>YouTube Jhony v5.1</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -285,6 +285,41 @@
       <label class="checkbox-lbl" id="overlayWrap" style="display:none;margin-bottom:12px;">
         <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload
       </label>
+
+      <div class="note-box" style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px;">🎨 Kustomisasi Thumbnail Otomatis</div>
+
+        <label class="checkbox-lbl" id="noTextThumbWrap" style="margin-bottom:12px;">
+          <input type="checkbox" id="noTextThumbChk"> Tanpa teks di thumbnail (desain polos)
+        </label>
+
+        <div id="customThumbTextWrap" style="margin-bottom:12px;">
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">Teks custom (opsional)</label>
+          <input type="text" id="customThumbTextInput" placeholder="Kosongkan = otomatis pakai judul tiap event" style="width:100%;">
+        </div>
+
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+          <label style="font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;">Warna teks</label>
+          <input type="color" id="thumbTextColorInput" value="#ffffff" style="width:42px;height:32px;padding:0;border:1px solid var(--border);border-radius:8px;flex-shrink:0;background:transparent;">
+          <select id="thumbFontSelect" style="flex:1;height:38px;min-width:0;">
+            <option value="sans-serif">Sans-serif (default)</option>
+            <option value="Arial Black, sans-serif">Arial Black</option>
+            <option value="Impact, sans-serif">Impact</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+            <option value="monospace">Monospace</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">Background</label>
+          <select id="thumbBgStyleSelect" style="width:100%;height:38px;">
+            <option value="plain">Polos (gradasi gelap, default)</option>
+            <option value="field">Lapangan Football (rumput + garis)</option>
+          </select>
+        </div>
+      </div>
 
       <div class="preview-assets" id="assetPreview"></div>
     </div>
@@ -537,6 +572,11 @@
     imageGallery: document.getElementById("imageGallery"),
     overlayWrap: document.getElementById("overlayWrap"),
     overlayTitleChk: document.getElementById("overlayTitleChk"),
+    noTextThumbChk: document.getElementById("noTextThumbChk"),
+    customThumbTextInput: document.getElementById("customThumbTextInput"),
+    thumbTextColorInput: document.getElementById("thumbTextColorInput"),
+    thumbFontSelect: document.getElementById("thumbFontSelect"),
+    thumbBgStyleSelect: document.getElementById("thumbBgStyleSelect"),
     imgModePill: document.getElementById("imgModePill"),
     assetPreview: document.getElementById("assetPreview"),
 
@@ -1877,10 +1917,38 @@
     return userImages[i % userImages.length].img;
   }
 
+  // Background lapangan football: rumput bergaris (mowing stripe) + garis yard putih, digambar murni pakai Canvas.
+  function drawFootballFieldBg(ctx, W, H){
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#2d7a2d"); bg.addColorStop(1, "#1a4d1a");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    // stripe rumput ala lapangan (selang-seling terang/gelap), vertikal
+    var stripeW = W / 14;
+    for (var i = 0; i < 14; i++){
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+      ctx.fillRect(i * stripeW, 0, stripeW, H);
+    }
+    // garis yard putih horizontal di area bawah
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 3;
+    for (var y = H * 0.62; y < H - 10; y += 46){
+      ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(W - 20, y); ctx.stroke();
+    }
+    // panel gelap transparan di sisi kiri supaya teks tetap kebaca di atas rumput
+    var grad = ctx.createLinearGradient(0, 0, W * 0.85, 0);
+    grad.addColorStop(0, "rgba(0,0,0,0.78)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W * 0.92, H);
+  }
+
   // Gambar satu frame ke canvas: mode upload (gambar user, bergilir kalau >1) atau desain otomatis dari judul.
   function drawFrame(ctx, row){
     var W = VIDEO_W, H = VIDEO_H;
     var img = pickImageForRow(row);
+    var noText = el.noTextThumbChk && el.noTextThumbChk.checked;
+    var customText = el.customThumbTextInput ? el.customThumbTextInput.value.trim() : "";
+    var titleText = customText || (row ? row.title : "Judul Event");
+    var textColor = (el.thumbTextColorInput && el.thumbTextColorInput.value) || "#ffffff";
+    var fontFamily = (el.thumbFontSelect && el.thumbFontSelect.value) || "sans-serif";
     if (img){
       // cover: isi penuh 16:9 tanpa gepeng
       ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
@@ -1888,29 +1956,34 @@
       var scale = Math.max(W / iw, H / ih);
       var dw = iw * scale, dh = ih * scale;
       ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      if (row && el.overlayTitleChk.checked){
+      if (row && !noText && el.overlayTitleChk.checked){
         var grad = ctx.createLinearGradient(0, H * 0.55, 0, H);
         grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,0,0,.8)");
         ctx.fillStyle = grad; ctx.fillRect(0, H * 0.55, W, H * 0.45);
-        ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-        ctx.font = "bold 54px sans-serif";
-        var ls = wrapText(ctx, row.title, W - 160, 2);
+        ctx.fillStyle = textColor; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.font = "bold 54px " + fontFamily;
+        var ls = wrapText(ctx, titleText, W - 160, 2);
         var y = H - 60 - (ls.length - 1) * 62;
         ls.forEach(function(t, i){ ctx.fillText(t, W / 2, y + i * 62); });
       }
       return;
     }
     // desain otomatis
-    var bg = ctx.createLinearGradient(0, 0, W, H);
-    bg.addColorStop(0, "#0f0f0f"); bg.addColorStop(1, "#2a0a0a");
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    if ((el.thumbBgStyleSelect && el.thumbBgStyleSelect.value) === "field"){
+      drawFootballFieldBg(ctx, W, H);
+    } else {
+      var bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, "#0f0f0f"); bg.addColorStop(1, "#2a0a0a");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    }
     ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 18, H);
     ctx.fillRect(0, H - 14, W, 14);
+    if (noText) return;
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ff4d4d"; ctx.font = "bold 34px sans-serif";
     ctx.fillText("JADWAL TAYANG", 90, 130);
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 78px sans-serif";
-    var lines = wrapText(ctx, row ? row.title : "Judul Event", W - 180, 3);
+    ctx.fillStyle = textColor; ctx.font = "bold 78px " + fontFamily;
+    var lines = wrapText(ctx, titleText, W - 180, 3);
     var y0 = 250;
     lines.forEach(function(t, i){ ctx.fillText(t, 90, y0 + i * 92); });
     if (row){
@@ -2757,6 +2830,11 @@
   el.imageFileInput.addEventListener("change", function(e){ addUserImages(e.target.files); e.target.value = ""; });
   el.clearImageBtn.addEventListener("click", clearUserImage);
   el.overlayTitleChk.addEventListener("change", renderAssetPreview);
+  el.noTextThumbChk.addEventListener("change", renderAssetPreview);
+  el.customThumbTextInput.addEventListener("input", renderAssetPreview);
+  el.thumbTextColorInput.addEventListener("input", renderAssetPreview);
+  el.thumbFontSelect.addEventListener("change", renderAssetPreview);
+  el.thumbBgStyleSelect.addEventListener("change", renderAssetPreview);
 
   el.selectAllChk.addEventListener("change", function(){
     var checked = this.checked;
