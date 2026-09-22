@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Jhony </title>
+<title>YouTube Jhony v4.9 </title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Jhony v5.1</h1>
+        <h1>YouTube Jhony v4.9</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -2691,7 +2691,7 @@
 
       // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM 5 detik -> videos.insert.
       // Mode live: render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag). Callback hasil SAMA untuk keduanya.
-      var makeAsset = appMode === "live" ? function(row, cb){ cb(null, null); } : renderVideoForRow;
+      var makeAsset = appMode === "live" ? renderThumbnailForRow : renderVideoForRow;
       makeAsset(row, function(renderErr, blob){
         if (renderErr){
           if (appMode === "live"){
