@@ -101,7 +101,9 @@
   .empty-icon{width:48px;height:48px;margin:0 auto 12px;border-radius:12px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted);}
   .empty-state p{font-size:13px;color:var(--muted);margin:0;}
   .toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px;}
-  .checkbox-lbl{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;}
+  .checkbox-lbl{display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;}
+  .checkbox-lbl input[type=checkbox]{flex-shrink:0;margin-top:2px;}
+  .checkbox-lbl span{flex:1;min-width:0;line-height:1.6;}
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#fff;color:#000;padding:10px 18px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:50;display:none;}
   code.inline{background:var(--bg);border:1px solid var(--border);padding:1px 6px;border-radius:6px;font-size:11px;}
   a{color:inherit;}
@@ -283,12 +285,21 @@
       <div id="imageGallery" style="display:none; flex-wrap:wrap; gap:10px; margin-bottom:12px;"></div>
 
       <label class="checkbox-lbl" id="useThumbWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="useThumbChk" checked> <b>Aktifkan thumbnail custom untuk Jadwal Live</b> (kirim lewat <code class="inline">thumbnails.set</code>). Matikan untuk pakai thumbnail default YouTube.
+        <input type="checkbox" id="useThumbChk" checked> <span><b>Aktifkan thumbnail custom untuk Jadwal Live</b> (kirim lewat <code class="inline">thumbnails.set</code>). Matikan untuk pakai thumbnail default YouTube.</span>
       </label>
 
       <label class="checkbox-lbl" id="overlayWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload (judul tampil di thumbnail)
+        <input type="checkbox" id="overlayTitleChk"> <span>Tempel judul event di atas gambar upload (judul tampil di thumbnail)</span>
       </label>
+
+      <label class="checkbox-lbl" id="autoNoTextWrap" style="display:none;margin-bottom:12px;">
+        <input type="checkbox" id="autoNoTextChk"> <span>Thumbnail polos tanpa teks (desain otomatis tanpa judul &amp; tanggal)</span>
+      </label>
+
+      <div class="field" id="customTextWrap">
+        <label for="customThumbTextInput">Teks custom di thumbnail (opsional)</label>
+        <input type="text" id="customThumbTextInput" placeholder="Kosongkan untuk pakai judul event apa adanya">
+      </div>
 
       <div class="preview-assets" id="assetPreview"></div>
     </div>
@@ -540,6 +551,9 @@
     imageGallery: document.getElementById("imageGallery"),
     overlayWrap: document.getElementById("overlayWrap"),
     overlayTitleChk: document.getElementById("overlayTitleChk"),
+    autoNoTextWrap: document.getElementById("autoNoTextWrap"),
+    autoNoTextChk: document.getElementById("autoNoTextChk"),
+    customThumbTextInput: document.getElementById("customThumbTextInput"),
     useThumbWrap: document.getElementById("useThumbWrap"),
     useThumbChk: document.getElementById("useThumbChk"),
     imgModePill: document.getElementById("imgModePill"),
@@ -1864,6 +1878,8 @@
   function drawFrame(ctx, row){
     var W = VIDEO_W, H = VIDEO_H;
     var img = pickImageForRow(row);
+    var customText = (el.customThumbTextInput && el.customThumbTextInput.value.trim()) || "";
+    var titleText = customText || (row ? row.title : "Judul Event");
     if (img){
       // cover: isi penuh 16:9 tanpa gepeng
       ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
@@ -1877,7 +1893,7 @@
         ctx.fillStyle = grad; ctx.fillRect(0, H * 0.55, W, H * 0.45);
         ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
         ctx.font = "bold 54px sans-serif";
-        var ls = wrapText(ctx, row.title, W - 160, 2);
+        var ls = wrapText(ctx, titleText, W - 160, 2);
         var y = H - 60 - (ls.length - 1) * 62;
         ls.forEach(function(t, i){ ctx.fillText(t, W / 2, y + i * 62); });
       }
@@ -1889,11 +1905,12 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 18, H);
     ctx.fillRect(0, H - 14, W, 14);
+    if (el.autoNoTextChk && el.autoNoTextChk.checked) return;
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ff4d4d"; ctx.font = "bold 34px sans-serif";
     ctx.fillText("JADWAL TAYANG", 90, 130);
     ctx.fillStyle = "#ffffff"; ctx.font = "bold 78px sans-serif";
-    var lines = wrapText(ctx, row ? row.title : "Judul Event", W - 180, 3);
+    var lines = wrapText(ctx, titleText, W - 180, 3);
     var y0 = 250;
     lines.forEach(function(t, i){ ctx.fillText(t, 90, y0 + i * 92); });
     if (row){
@@ -2046,6 +2063,7 @@
   function refreshImageUi(){
     el.clearImageBtn.style.display = userImages.length ? "block" : "none";
     el.overlayWrap.style.display = userImages.length ? "flex" : "none";
+    el.autoNoTextWrap.style.display = userImages.length ? "none" : "flex";
     el.useThumbWrap.style.display = (appMode === "live") ? "flex" : "none";
     el.imgModePill.textContent = (userImages.length ? "Mode: gambar upload (" + userImages.length + ")" : "Mode: desain otomatis") + (appMode === "live" ? " (thumbnail)" : " (video)");
     renderImageGallery();
@@ -2618,6 +2636,8 @@
   el.imageFileInput.addEventListener("change", function(e){ addUserImages(e.target.files); e.target.value = ""; });
   el.clearImageBtn.addEventListener("click", clearUserImage);
   el.overlayTitleChk.addEventListener("change", renderAssetPreview);
+  el.autoNoTextChk.addEventListener("change", renderAssetPreview);
+  el.customThumbTextInput.addEventListener("input", renderAssetPreview);
   el.useThumbChk.addEventListener("change", renderAssetPreview);
 
   el.selectAllChk.addEventListener("change", function(){
