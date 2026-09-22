@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Obot CS v4.8 (Vanilla JS)</title>
+<title>YouTube Jhony v4.9 </title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Obot CS v4.8</h1>
+        <h1>YouTube Jhony v4.9</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -1468,7 +1468,7 @@
     // Dipakai buat memulihkan DAFTAR akun (email/channel) setelah refresh, supaya user tinggal "Login ulang"
     // per akun (lewat login_hint) alih-alih "Tambah Akun" dari nol dan harus ingat2 100 email satu-satu.
     try {
-      var lite = accounts.map(function(a){ return { email: a.email, name: a.name, channelTitle: a.channelTitle, clientId: a.clientId, usedCount: a.usedCount || 0, usedDay: a.usedDay || pacificDateKey() }; });
+      var lite = accounts.map(function(a){ return { email: a.email, name: a.name, channelTitle: a.channelTitle, channelId: a.channelId, clientId: a.clientId, usedCount: a.usedCount || 0, usedDay: a.usedDay || pacificDateKey() }; });
       localStorage.setItem("yt_csv_accounts_meta", JSON.stringify(lite));
     } catch (e){}
     persistSessionTokens();
@@ -1591,9 +1591,11 @@
       .then(function(d){
         if (d.items && d.items.length){
           acc.channelTitle = d.items[0].snippet.title;
+          acc.channelId = d.items[0].id;
           log("Channel terdeteksi untuk akun ini: " + acc.channelTitle, "success");
         } else {
           acc.channelTitle = null;
+          acc.channelId = null;
           log("Channel tidak ditemukan untuk salah satu akun. Pastikan akun itu punya channel YouTube.", "error");
         }
         persistAccounts();
@@ -2107,7 +2109,7 @@
 
   // Satu event live. Tahap: 1) insert broadcast (wajib)  2) thumbnail (opsional)  3) tags via videos.update (opsional).
   // Tahap 2 & 3 gagal TIDAK membatalkan tahap 1: broadcast sudah jadi, hanya dilaporkan sebagai peringatan.
-  function createLiveEvent(row, token, thumbBlob, cb){
+  function createLiveEvent(row, token, channelId, thumbBlob, cb){
     var startUtc = rowUtcIso(row);
     if (!startUtc){ cb({ ok: false, error: "Format tanggal/jam salah" }); return; }
     if (isPastUtc(startUtc)){ cb({ ok: false, skipped: true, error: "Tanggal sudah lewat, di-skip" }); return; }
@@ -2200,13 +2202,25 @@
         // nunggu stream benar-benar live. Retry otomatis kalau kena rate limit 429 (sama seperti thumbnail).
         var stepComment = function(next){
           if (!row.commentText){ next(); return; }
+          if (!channelId){
+            // Akun ini tersimpan sebelum channelId ikut disimpan (data lama) -> ambil sekali lalu lanjut.
+            fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", { headers: { Authorization: "Bearer " + token } })
+              .then(function(r2){ return r2.json(); })
+              .then(function(d2){ channelId = d2.items && d2.items[0] && d2.items[0].id; sendComment(next); })
+              .catch(function(){ sendComment(next); });
+            return;
+          }
+          sendComment(next);
+        };
+        var sendComment = function(next){
           var attempt = 0, MAX_ATTEMPTS = 3;
           var tryOnce = function(){
             attempt++;
             fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
               method: "POST",
               headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-              body: JSON.stringify({ snippet: { videoId: videoId, topLevelComment: { snippet: { textOriginal: row.commentText } } } })
+              // channelId WAJIB diisi (dokumentasi resmi Google): channel pemilik video, dalam kasus ini channel akun yang sama.
+              body: JSON.stringify({ snippet: { channelId: channelId, videoId: videoId, topLevelComment: { snippet: { textOriginal: row.commentText } } } })
             }).then(function(r){
               costUsed += COST.live.comment;
               if (r.ok){ commentOk = true; next(); return; }
@@ -2288,7 +2302,7 @@
         noAcc++; i++; next();
         return;
       }
-      postCommentWithRetry(row.videoId, acc.token, row.commentText, row.title, function(err){
+      postCommentWithRetry(row.videoId, acc.token, acc.channelId, row.commentText, row.title, function(err){
         addClientQuotaUsage(acc.clientId, "live", COST.live.comment);
         if (err){
           log("✗ Komentar \"" + row.title + "\" masih gagal: " + err, "error");
@@ -2307,17 +2321,29 @@
 
   // Post 1 komentar ke video yang sudah ada (dipakai fitur "Perbaiki Komentar Gagal"), tanpa retry-loop 429
   // internal (kesempatan retry manual ada di tombolnya sendiri, dipanggil lagi kalau user klik ulang).
-  function postCommentWithRetry(videoId, token, text, title, cb){
-    fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-      body: JSON.stringify({ snippet: { videoId: videoId, topLevelComment: { snippet: { textOriginal: text } } } })
-    }).then(function(r){
+  function postCommentWithRetry(videoId, token, channelId, text, title, cb){
+    var send = function(cid){
+      fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
+        // channelId WAJIB diisi (dokumentasi resmi Google): channel pemilik video, dalam kasus ini channel akun yang sama.
+        body: JSON.stringify({ snippet: { channelId: cid, videoId: videoId, topLevelComment: { snippet: { textOriginal: text } } } })
+      }).then(handle).catch(function(e){ cb(e.message || String(e)); });
+    };
+    if (!channelId){
+      fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", { headers: { Authorization: "Bearer " + token } })
+        .then(function(r2){ return r2.json(); })
+        .then(function(d2){ send(d2.items && d2.items[0] && d2.items[0].id); })
+        .catch(function(){ send(null); });
+      return;
+    }
+    send(channelId);
+    function handle(r){
       if (r.ok){ cb(null); return; }
       return r.text().then(function(t){
         cb(describeCommentError(r.status, t));
       });
-    }).catch(function(e){ cb(e.message || String(e)); });
+    }
   }
 
   // Perbaiki thumbnail utk baris yang sudah sukses jadi jadwal live tapi thumbnail-nya gagal ke-set sebelumnya.
@@ -2374,7 +2400,7 @@
 
   // ================= UPLOAD KE YOUTUBE (videos.insert) =================
   // token dioper eksplisit (bukan global) supaya jelas akun mana yang dipakai tiap panggilan.
-  function uploadOneEvent(row, token, videoBlob, cb){
+  function uploadOneEvent(row, token, channelId, videoBlob, cb){
     var publishAtUtc = rowUtcIso(row);
     if (!publishAtUtc){ cb({ ok: false, error: "Format tanggal/jam salah" }); return; }
     if (isPastUtc(publishAtUtc)){ cb({ ok: false, skipped: true, error: "Tanggal sudah lewat, di-skip" }); return; }
@@ -2612,7 +2638,7 @@
           }
         }
         var sender = appMode === "live" ? createLiveEvent : uploadOneEvent;
-        sender(row, acc.token, blob, function(res){
+        sender(row, acc.token, acc.channelId, blob, function(res){
           if (res.skipped){
             row.status = "skip";
             row.message = res.error;
@@ -2787,6 +2813,7 @@
         name: a.name || null,
         picture: null,
         channelTitle: a.channelTitle || null,
+        channelId: a.channelId || null,
         // usedCount hanya berlaku di HARI (Pasifik) yang sama: kuota Google sudah reset, jadi hitungan hari lain dibuang.
         usedCount: (a.usedDay === todayKey ? (a.usedCount || 0) : 0),
         usedDay: todayKey
