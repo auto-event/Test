@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Jhony v4.9 </title>
+<title>YouTube Obot CS v4.8 (Vanilla JS)</title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Jhony v4.9</h1>
+        <h1>YouTube Obot CS v4.8</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -169,7 +169,7 @@
         <div class="note-box" style="margin-top:10px;">
           <b>Kuota YouTube dihitung per Client ID (per project Google Cloud), bukan per akun.</b> Menurut dokumentasi Google (diperbarui 15 Sep 2026),
           tiap project mendapat <b>100 upload video/hari</b> (bucket sendiri, 1 unit/upload) dan <b>10.000 unit/hari</b> untuk method lain
-          (jadwal live 50 unit, thumbnail 50 unit, update tag 50 unit, komentar pertama 50 unit).
+          (jadwal live 50 unit, thumbnail 50 unit, update tag 50 unit).
           Menambah akun di Client ID yang sama <b>tidak</b> menambah kuota; menambah <b>Client ID dari project berbeda</b> yang menambah kuota.
           Kalau Client ID masih status <b>Testing</b>, tiap akun yang dipakai wajib didaftarkan di <b>Audience &rarr; Test users</b> project itu.
         </div>
@@ -231,7 +231,7 @@
       <div class="note-box" style="margin-top:14px;">
         <b>Format tanpa header (otomatis dikenali):</b> tiap baris = 1 event. Kolom pertama = judul; kolom berlabel
         <code class="inline">Date:</code> dan <code class="inline">Time:</code> (mis. <i>Saturday, Sep 19, 2026</i> dan <i>4:00 PM CDT</i>) dibaca sebagai jadwal
-        dibaca apa adanya beserta zona waktunya (jam tidak diubah; YouTube tetap menerima waktu yang tepat); kolom lain jadi deskripsi; kolom berawalan <code class="inline">#</code> jadi hashtag dan tags; <b>kolom ke-14 (N)</b> otomatis dipisah jadi <b>komentar pertama</b> di video (bukan ikut deskripsi, bukan live chat) &mdash; diposting otomatis begitu event berhasil dibuat.<br>
+        dibaca apa adanya beserta zona waktunya (jam tidak diubah; YouTube tetap menerima waktu yang tepat); kolom lain jadi deskripsi; kolom berawalan <code class="inline">#</code> jadi hashtag dan tags.<br>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">Privacy untuk format ini:
           <select id="newFormatPrivacy" style="width:auto;padding:8px;">
             <option value="private">private</option>
@@ -286,41 +286,6 @@
         <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload
       </label>
 
-      <div class="note-box" style="margin-bottom:12px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px;">🎨 Kustomisasi Thumbnail Otomatis</div>
-
-        <label class="checkbox-lbl" id="noTextThumbWrap" style="margin-bottom:12px;">
-          <input type="checkbox" id="noTextThumbChk"> Tanpa teks di thumbnail (desain polos)
-        </label>
-
-        <div id="customThumbTextWrap" style="margin-bottom:12px;">
-          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">Teks custom (opsional)</label>
-          <input type="text" id="customThumbTextInput" placeholder="Kosongkan = otomatis pakai judul tiap event" style="width:100%;">
-        </div>
-
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
-          <label style="font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;">Warna teks</label>
-          <input type="color" id="thumbTextColorInput" value="#ffffff" style="width:42px;height:32px;padding:0;border:1px solid var(--border);border-radius:8px;flex-shrink:0;background:transparent;">
-          <select id="thumbFontSelect" style="flex:1;height:38px;min-width:0;">
-            <option value="sans-serif">Sans-serif (default)</option>
-            <option value="Arial Black, sans-serif">Arial Black</option>
-            <option value="Impact, sans-serif">Impact</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
-            <option value="Verdana, sans-serif">Verdana</option>
-            <option value="monospace">Monospace</option>
-          </select>
-        </div>
-
-        <div>
-          <label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px;">Background</label>
-          <select id="thumbBgStyleSelect" style="width:100%;height:38px;">
-            <option value="plain">Polos (gradasi gelap, default)</option>
-            <option value="field">Lapangan Football (rumput + garis)</option>
-          </select>
-        </div>
-      </div>
-
       <div class="preview-assets" id="assetPreview"></div>
     </div>
   </section>
@@ -351,7 +316,6 @@
         </div>
 
         <button class="btn-ghost" id="fixThumbsBtn" style="display:none;width:100%;margin-bottom:14px;">Perbaiki Thumbnail Gagal</button>
-        <button class="btn-ghost" id="fixCommentsBtn" style="display:none;width:100%;margin-bottom:14px;">Perbaiki Komentar Gagal</button>
 
         <div style="margin-bottom:14px; display:none;" id="progressWrap">
           <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:6px;">
@@ -489,8 +453,8 @@
   // ---- MODE: "video" (videos.insert) atau "live" (liveBroadcasts.insert) ----
   // Biaya per event menurut https://developers.google.com/youtube/v3/determine_quota_cost (diperbarui 15 Sep 2026):
   //   video : videos.insert = 1 unit dari bucket SENDIRI 100/hari (tidak memakai 10.000 unit)
-  //   live  : liveBroadcasts.insert 50 + thumbnails.set 50 + videos.update (tag) 50 + commentThreads.insert 50 = 200 unit dari 10.000 unit bersama (kalau ada komentar)
-  var COST = { live: { insert: 50, thumb: 50, tags: 50, comment: 50 }, DAILY_UNITS: 10000, VIDEO_BUCKET: 100 };
+  //   live  : liveBroadcasts.insert 50 + thumbnails.set 50 + videos.update (tag) 50 = 150 unit dari 10.000 unit bersama
+  var COST = { live: { insert: 50, thumb: 50, tags: 50 }, DAILY_UNITS: 10000, VIDEO_BUCKET: 100 };
   // videos.update MENIMPA seluruh snippet dan mewajibkan categoryId. Agar kategori tidak berubah diam-diam, nilai yang SAMA
   // dikirim saat membuat broadcast (snippet.categoryId boleh diisi di liveBroadcasts.insert) dan saat update tag.
   var LIVE_CATEGORY_ID = "22";   // 22 = People & Blogs
@@ -522,9 +486,9 @@
     if (mode === "live") q.liveUnits += (unitsUsed || 0); else q.videoSlots += 1;
     persistClientQuota();
   }
-  var LIVE_EVENT_COST = COST.live.insert + COST.live.thumb + COST.live.tags + COST.live.comment;   // 200 (asumsi tiap event juga post komentar)
+  var LIVE_EVENT_COST = COST.live.insert + COST.live.thumb + COST.live.tags;   // 150
   function eventsPerDayPerClient(mode){
-    return mode === "live" ? Math.floor(COST.DAILY_UNITS / LIVE_EVENT_COST) : COST.VIDEO_BUCKET;   // 50 vs 100
+    return mode === "live" ? Math.floor(COST.DAILY_UNITS / LIVE_EVENT_COST) : COST.VIDEO_BUCKET;   // 66 vs 100
   }
   var LS_MODE = "yt_csv_mode";
   var appMode = (function(){ try { var m = localStorage.getItem("yt_csv_mode"); return m === "live" ? "live" : "video"; } catch (e){ return "video"; } })();
@@ -572,11 +536,6 @@
     imageGallery: document.getElementById("imageGallery"),
     overlayWrap: document.getElementById("overlayWrap"),
     overlayTitleChk: document.getElementById("overlayTitleChk"),
-    noTextThumbChk: document.getElementById("noTextThumbChk"),
-    customThumbTextInput: document.getElementById("customThumbTextInput"),
-    thumbTextColorInput: document.getElementById("thumbTextColorInput"),
-    thumbFontSelect: document.getElementById("thumbFontSelect"),
-    thumbBgStyleSelect: document.getElementById("thumbBgStyleSelect"),
     imgModePill: document.getElementById("imgModePill"),
     assetPreview: document.getElementById("assetPreview"),
 
@@ -594,7 +553,6 @@
     clearLogBtn: document.getElementById("clearLogBtn"),
     downloadLogBtn: document.getElementById("downloadLogBtn"),
     fixThumbsBtn: document.getElementById("fixThumbsBtn"),
-    fixCommentsBtn: document.getElementById("fixCommentsBtn"),
     restoreBanner: document.getElementById("restoreBanner"),
 
     downloadTemplateBtn: document.getElementById("downloadTemplateBtn"),
@@ -647,7 +605,7 @@
     el.modeLiveBtn.className = live ? "btn-white" : "btn-ghost";
     el.modeNote.innerHTML = live
       ? '<b>Mode Jadwal Live.</b> Yang dibuat adalah <b>halaman event live terjadwal</b> (judul, deskripsi, tag, thumbnail), <b>bukan video</b>. Tidak ada yang tayang otomatis: konten baru ada kalau kamu benar-benar siaran. ' +
-        'Biaya per event <b>150-200 unit</b> (jadwal 50 + thumbnail 50 + tag 50, +50 lagi kalau ada komentar pertama dari kolom N) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
+        'Biaya per event <b>150 unit</b> (jadwal 50 + thumbnail 50 + tag 50) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
         '<b>Syarat:</b> live streaming harus <b>aktif</b> di channel (verifikasi telepon, aktivasi pertama bisa sampai 24 jam) dan channel harus terverifikasi untuk thumbnail. ' +
         'Jadwal harus di masa depan dan &ldquo;cukup dekat&rdquo; (batas Google tidak dipublikasikan, kalau ditolak coba tanggal lebih dekat). Render video tidak dipakai.'
       : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 5 detik lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
@@ -1022,9 +980,6 @@
     return !(cells || []).some(function(c){ return String(c).trim() !== ""; });
   }
 
-  // Kolom yang isinya dikirim jadi KOMENTAR PERTAMA di video (bukan deskripsi, bukan live chat). A=0, B=1, ... N=13.
-  var COMMENT_COL_INDEX = 13;
-
   // arrays = array of array (sel per baris). Hasil: { rows:[...objek standar...], problems:[...] }
   function parseHeaderlessRows(arrays){
     var rows = [], problems = [];
@@ -1034,7 +989,7 @@
       var n = idx + 1;
       var vals = cells.map(function(c){ return String(c == null ? "" : c).trim(); });
       var title = vals[0] || "";
-      var dateText = null, timeText = null, hashtags = [], descLines = [], commentLines = [];
+      var dateText = null, timeText = null, hashtags = [], descLines = [];
       vals.forEach(function(v, ci){
         if (!v || ci === 0) return;
         if (v === title) return;                        // kolom judul yang diulang
@@ -1043,9 +998,6 @@
         if (d !== null && dateText === null){ dateText = d; return; }
         if (t !== null && timeText === null){ timeText = t; return; }
         if (v.charAt(0) === "#"){ hashtags.push(v.split(/\s+/)[0]); return; }
-        // Kolom N (kolom ke-14, indeks 13) -> masuk KOMENTAR PERTAMA video, BUKAN deskripsi. Kolom lain (termasuk
-        // kolom C "Watch Live Stream" yang isinya kosong) tetap masuk deskripsi APA ADANYA sesuai file.
-        if (ci === COMMENT_COL_INDEX){ commentLines.push(v); return; }
         descLines.push(v);
       });
       var row = {
@@ -1053,8 +1005,6 @@
         title: title,
         date: "", time: "",
         description: descLines.join("\n") + (hashtags.length ? "\n\n" + hashtags.join(" ") : ""),
-        commentText: commentLines.join("\n").slice(0, 9000),   // batas komentar YouTube ~10.000 karakter
-        commentPosted: false,
         privacy: privacy,
         tags: hashtags.map(function(h){ return h.replace(/^#+/, ""); }).filter(Boolean).join(","),
         status: "ready", message: "", videoId: null, _pastDate: false, _invalid: false
@@ -1279,17 +1229,6 @@
       return r.mode === "live" && r.status === "sukses" && r.videoId && r.message && /thumbnail/i.test(r.message);
     });
   }
-  // Baris live sukses yang ada teks komentar (kolom N) tapi komentarnya GAGAL ke-post otomatis (kena rate limit/error).
-  function rowsNeedingCommentFix(){
-    return events.filter(function(r){
-      return r.mode === "live" && r.status === "sukses" && r.videoId && r.commentText && !r.commentPosted;
-    });
-  }
-  function updateFixCommentsBtn(){
-    var n = rowsNeedingCommentFix().length;
-    el.fixCommentsBtn.style.display = n ? "block" : "none";
-    el.fixCommentsBtn.textContent = "Perbaiki Komentar Gagal (" + n + ")";
-  }
   function updateFixThumbsBtn(){
     var n = rowsNeedingThumbFix().length;
     el.fixThumbsBtn.style.display = n ? "block" : "none";
@@ -1299,7 +1238,6 @@
   function renderEventsTable(){
     saveState();
     updateFixThumbsBtn();
-    updateFixCommentsBtn();
     if (events.length === 0){
       el.emptyState.style.display = "block";
       el.eventsArea.style.display = "none";
@@ -1508,7 +1446,7 @@
     // Dipakai buat memulihkan DAFTAR akun (email/channel) setelah refresh, supaya user tinggal "Login ulang"
     // per akun (lewat login_hint) alih-alih "Tambah Akun" dari nol dan harus ingat2 100 email satu-satu.
     try {
-      var lite = accounts.map(function(a){ return { email: a.email, name: a.name, channelTitle: a.channelTitle, channelId: a.channelId, clientId: a.clientId, usedCount: a.usedCount || 0, usedDay: a.usedDay || pacificDateKey() }; });
+      var lite = accounts.map(function(a){ return { email: a.email, name: a.name, channelTitle: a.channelTitle, clientId: a.clientId, usedCount: a.usedCount || 0, usedDay: a.usedDay || pacificDateKey() }; });
       localStorage.setItem("yt_csv_accounts_meta", JSON.stringify(lite));
     } catch (e){}
     persistSessionTokens();
@@ -1543,7 +1481,7 @@
       try {
         tokenClients[cid] = google.accounts.oauth2.initTokenClient({
           client_id: cid,
-          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
           callback: function(resp){
             if (resp.access_token){
               // Hasil dari percobaan perpanjangan otomatis (silent, prompt:"")?
@@ -1631,11 +1569,9 @@
       .then(function(d){
         if (d.items && d.items.length){
           acc.channelTitle = d.items[0].snippet.title;
-          acc.channelId = d.items[0].id;
           log("Channel terdeteksi untuk akun ini: " + acc.channelTitle, "success");
         } else {
           acc.channelTitle = null;
-          acc.channelId = null;
           log("Channel tidak ditemukan untuk salah satu akun. Pastikan akun itu punya channel YouTube.", "error");
         }
         persistAccounts();
@@ -1917,38 +1853,10 @@
     return userImages[i % userImages.length].img;
   }
 
-  // Background lapangan football: rumput bergaris (mowing stripe) + garis yard putih, digambar murni pakai Canvas.
-  function drawFootballFieldBg(ctx, W, H){
-    var bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, "#2d7a2d"); bg.addColorStop(1, "#1a4d1a");
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    // stripe rumput ala lapangan (selang-seling terang/gelap), vertikal
-    var stripeW = W / 14;
-    for (var i = 0; i < 14; i++){
-      ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
-      ctx.fillRect(i * stripeW, 0, stripeW, H);
-    }
-    // garis yard putih horizontal di area bawah
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 3;
-    for (var y = H * 0.62; y < H - 10; y += 46){
-      ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(W - 20, y); ctx.stroke();
-    }
-    // panel gelap transparan di sisi kiri supaya teks tetap kebaca di atas rumput
-    var grad = ctx.createLinearGradient(0, 0, W * 0.85, 0);
-    grad.addColorStop(0, "rgba(0,0,0,0.78)"); grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, W * 0.92, H);
-  }
-
   // Gambar satu frame ke canvas: mode upload (gambar user, bergilir kalau >1) atau desain otomatis dari judul.
   function drawFrame(ctx, row){
     var W = VIDEO_W, H = VIDEO_H;
     var img = pickImageForRow(row);
-    var noText = el.noTextThumbChk && el.noTextThumbChk.checked;
-    var customText = el.customThumbTextInput ? el.customThumbTextInput.value.trim() : "";
-    var titleText = customText || (row ? row.title : "Judul Event");
-    var textColor = (el.thumbTextColorInput && el.thumbTextColorInput.value) || "#ffffff";
-    var fontFamily = (el.thumbFontSelect && el.thumbFontSelect.value) || "sans-serif";
     if (img){
       // cover: isi penuh 16:9 tanpa gepeng
       ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
@@ -1956,34 +1864,29 @@
       var scale = Math.max(W / iw, H / ih);
       var dw = iw * scale, dh = ih * scale;
       ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      if (row && !noText && el.overlayTitleChk.checked){
+      if (row && el.overlayTitleChk.checked){
         var grad = ctx.createLinearGradient(0, H * 0.55, 0, H);
         grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,0,0,.8)");
         ctx.fillStyle = grad; ctx.fillRect(0, H * 0.55, W, H * 0.45);
-        ctx.fillStyle = textColor; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-        ctx.font = "bold 54px " + fontFamily;
-        var ls = wrapText(ctx, titleText, W - 160, 2);
+        ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.font = "bold 54px sans-serif";
+        var ls = wrapText(ctx, row.title, W - 160, 2);
         var y = H - 60 - (ls.length - 1) * 62;
         ls.forEach(function(t, i){ ctx.fillText(t, W / 2, y + i * 62); });
       }
       return;
     }
     // desain otomatis
-    if ((el.thumbBgStyleSelect && el.thumbBgStyleSelect.value) === "field"){
-      drawFootballFieldBg(ctx, W, H);
-    } else {
-      var bg = ctx.createLinearGradient(0, 0, W, H);
-      bg.addColorStop(0, "#0f0f0f"); bg.addColorStop(1, "#2a0a0a");
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    }
+    var bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#0f0f0f"); bg.addColorStop(1, "#2a0a0a");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 18, H);
     ctx.fillRect(0, H - 14, W, 14);
-    if (noText) return;
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ff4d4d"; ctx.font = "bold 34px sans-serif";
     ctx.fillText("JADWAL TAYANG", 90, 130);
-    ctx.fillStyle = textColor; ctx.font = "bold 78px " + fontFamily;
-    var lines = wrapText(ctx, titleText, W - 180, 3);
+    ctx.fillStyle = "#ffffff"; ctx.font = "bold 78px sans-serif";
+    var lines = wrapText(ctx, row ? row.title : "Judul Event", W - 180, 3);
     var y0 = 250;
     lines.forEach(function(t, i){ ctx.fillText(t, 90, y0 + i * 92); });
     if (row){
@@ -2182,7 +2085,7 @@
 
   // Satu event live. Tahap: 1) insert broadcast (wajib)  2) thumbnail (opsional)  3) tags via videos.update (opsional).
   // Tahap 2 & 3 gagal TIDAK membatalkan tahap 1: broadcast sudah jadi, hanya dilaporkan sebagai peringatan.
-  function createLiveEvent(row, token, channelId, thumbBlob, cb){
+  function createLiveEvent(row, token, thumbBlob, cb){
     var startUtc = rowUtcIso(row);
     if (!startUtc){ cb({ ok: false, error: "Format tanggal/jam salah" }); return; }
     if (isPastUtc(startUtc)){ cb({ ok: false, skipped: true, error: "Tanggal sudah lewat, di-skip" }); return; }
@@ -2215,7 +2118,6 @@
         var bc; try { bc = JSON.parse(txt); } catch (e){ cb({ ok: false, error: "Response broadcast bukan JSON valid" }); return; }
         var videoId = bc.id;   // id broadcast = id video di YouTube
         var warnings = [];
-        var commentOk = null;   // null = tidak ada komentar buat baris ini; true/false = hasil posting komentar
 
         // ---- tahap 2: thumbnail (retry otomatis kalau kena rate limit 429, burst limit thumbnails.set beda dari kuota harian) ----
         var stepThumb = function(next){
@@ -2270,51 +2172,9 @@
           }).catch(function(e){ warnings.push("tag: " + (e.message || e)); next(); });
         };
 
-        // ---- tahap 4: komentar pertama di video (commentThreads.insert, kolom N di CSV/XLSX tanpa header).
-        // Beda dari live chat: komentar video BISA langsung diposting begitu video/broadcast dibuat, TIDAK perlu
-        // nunggu stream benar-benar live. Retry otomatis kalau kena rate limit 429 (sama seperti thumbnail).
-        var stepComment = function(next){
-          if (!row.commentText){ next(); return; }
-          // PENTING: channelId diambil dari VIDEO/broadcast-nya sendiri (videos.list), BUKAN channels?mine=true.
-          // channels?mine=true bisa salah kalau akun Google punya >1 channel/Brand Account -> commentThreads.insert
-          // ditolak 403 forbidden walau scope & login sudah benar, karena channelId-nya bukan pemilik video ini.
-          fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + videoId, { headers: { Authorization: "Bearer " + token } })
-            .then(function(r2){ return r2.json(); })
-            .then(function(d2){ channelId = (d2.items && d2.items[0] && d2.items[0].snippet && d2.items[0].snippet.channelId) || channelId; sendComment(next); })
-            .catch(function(){ sendComment(next); });
-        };
-        var sendComment = function(next){
-          var attempt = 0, MAX_ATTEMPTS = 3;
-          var tryOnce = function(){
-            attempt++;
-            fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
-              method: "POST",
-              headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-              // channelId WAJIB diisi (dokumentasi resmi Google): channel pemilik video, dalam kasus ini channel akun yang sama.
-              body: JSON.stringify({ snippet: { channelId: channelId, videoId: videoId, topLevelComment: { snippet: { textOriginal: row.commentText } } } })
-            }).then(function(r){
-              costUsed += COST.live.comment;
-              if (r.ok){ commentOk = true; next(); return; }
-              return r.text().then(function(t){
-                if (r.status === 429 && attempt < MAX_ATTEMPTS){
-                  var delayMs = attempt === 1 ? 4000 : 10000;
-                  log("⏳ Komentar kena rate limit (429) untuk \"" + row.title + "\", coba lagi otomatis dalam " + (delayMs / 1000) + " detik (percobaan " + (attempt + 1) + "/" + MAX_ATTEMPTS + ")...", "info");
-                  setTimeout(tryOnce, delayMs);
-                  return;
-                }
-                commentOk = false;
-                if (r.status === 429) warnings.push("komentar masih kena rate limit (429) setelah " + MAX_ATTEMPTS + "x coba");
-                else warnings.push("komentar " + describeCommentError(r.status, t));
-                next();
-              });
-            }).catch(function(e){ commentOk = false; warnings.push("komentar: " + (e.message || e)); next(); });
-          };
-          tryOnce();
-        };
-
-        stepThumb(function(){ stepTags(function(){ stepComment(function(){
-          cb({ ok: true, videoId: videoId, commentPosted: commentOk === true, warnings: warnings, unitsUsed: costUsed, error: warnings.length ? warnings.join("; ") : null });
-        }); }); });
+        stepThumb(function(){ stepTags(function(){
+          cb({ ok: true, videoId: videoId, warnings: warnings, unitsUsed: costUsed, error: warnings.length ? warnings.join("; ") : null });
+        }); });
       });
     }).catch(function(e){ cb({ ok: false, error: e.message || String(e) }); });
   }
@@ -2344,76 +2204,6 @@
       }).catch(function(e){ cb(e.message || String(e), attempt); });
     };
     tryOnce();
-  }
-
-  // Coba lagi post komentar utk baris yang sudah sukses jadi jadwal live tapi komentarnya gagal ke-post otomatis
-  // (kena rate limit/dll saat pembuatan event). TIDAK bikin ulang jadwal live-nya, videoId lama dipakai lagi.
-  function retryFailedComments(){
-    if (running){ showToast("Tunggu proses upload selesai dulu"); return; }
-    var rows = rowsNeedingCommentFix();
-    if (!rows.length){ showToast("Tidak ada komentar yang perlu diperbaiki"); return; }
-    var fixed = 0, failed = 0, noAcc = 0, i = 0;
-    log("Mulai perbaiki komentar untuk " + rows.length + " event...", "info");
-    el.fixCommentsBtn.disabled = true;
-    function next(){
-      if (i >= rows.length){
-        el.fixCommentsBtn.disabled = false;
-        log("Selesai perbaiki komentar: " + fixed + " berhasil, " + failed + " masih gagal, " + noAcc + " butuh login akun dulu.", fixed ? "success" : "error");
-        showToast(fixed + " komentar diperbaiki" + (failed || noAcc ? ", " + (failed + noAcc) + " belum" : ""));
-        renderEventsTable();
-        renderClientIds();
-        return;
-      }
-      var row = rows[i];
-      var acc = accounts.find(function(a){
-        return !isTokenExpired(a) && ((a.channelTitle && a.channelTitle === row.uploadedVia) || (a.email && a.email === row.uploadedVia));
-      });
-      if (!acc){
-        log("⏭ Lewati \"" + row.title + "\": akun \"" + row.uploadedVia + "\" belum login/tokennya habis. Login ulang akun itu dulu.", "error");
-        noAcc++; i++; next();
-        return;
-      }
-      postCommentWithRetry(row.videoId, acc.token, acc.channelId, row.commentText, row.title, function(err){
-        addClientQuotaUsage(acc.clientId, "live", COST.live.comment);
-        if (err){
-          log("✗ Komentar \"" + row.title + "\" masih gagal: " + err, "error");
-          failed++;
-        } else {
-          row.commentPosted = true;
-          log("✓ Komentar berhasil diposting: " + row.title, "success");
-          fixed++;
-        }
-        i++;
-        setTimeout(next, 1200);
-      });
-    }
-    next();
-  }
-
-  // Post 1 komentar ke video yang sudah ada (dipakai fitur "Perbaiki Komentar Gagal"), tanpa retry-loop 429
-  // internal (kesempatan retry manual ada di tombolnya sendiri, dipanggil lagi kalau user klik ulang).
-  function postCommentWithRetry(videoId, token, channelId, text, title, cb){
-    // PENTING: selalu ambil channelId dari VIDEO/broadcast-nya sendiri (videos.list), BUKAN channels?mine=true.
-    // channels?mine=true bisa salah kalau akun Google punya >1 channel/Brand Account, bikin commentThreads.insert
-    // ditolak 403 forbidden walau login & scope sudah benar (channelId-nya bukan pemilik video ini).
-    fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + videoId, { headers: { Authorization: "Bearer " + token } })
-      .then(function(r2){ return r2.json(); })
-      .then(function(d2){ send((d2.items && d2.items[0] && d2.items[0].snippet && d2.items[0].snippet.channelId) || channelId); })
-      .catch(function(){ send(channelId); });
-    function send(cid){
-      fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
-        // channelId WAJIB diisi (dokumentasi resmi Google): channel pemilik video, dalam kasus ini channel akun yang sama.
-        body: JSON.stringify({ snippet: { channelId: cid, videoId: videoId, topLevelComment: { snippet: { textOriginal: text } } } })
-      }).then(handle).catch(function(e){ cb(e.message || String(e)); });
-    }
-    function handle(r){
-      if (r.ok){ cb(null); return; }
-      return r.text().then(function(t){
-        cb(describeCommentError(r.status, t));
-      });
-    }
   }
 
   // Perbaiki thumbnail utk baris yang sudah sukses jadi jadwal live tapi thumbnail-nya gagal ke-set sebelumnya.
@@ -2470,7 +2260,7 @@
 
   // ================= UPLOAD KE YOUTUBE (videos.insert) =================
   // token dioper eksplisit (bukan global) supaya jelas akun mana yang dipakai tiap panggilan.
-  function uploadOneEvent(row, token, channelId, videoBlob, cb){
+  function uploadOneEvent(row, token, videoBlob, cb){
     var publishAtUtc = rowUtcIso(row);
     if (!publishAtUtc){ cb({ ok: false, error: "Format tanggal/jam salah" }); return; }
     if (isPastUtc(publishAtUtc)){ cb({ ok: false, skipped: true, error: "Tanggal sudah lewat, di-skip" }); return; }
@@ -2546,19 +2336,7 @@
     // fallback: kalau body bukan JSON tapi jelas menyebut quota
     if (!quota && status === 403 && reasons.length === 0 && /quota/i.test(bodyText)) quota = true;
     var auth = status === 401;
-    return { quota: quota, auth: auth, uploadLimit: uploadLimit, reasons: reasons };
-  }
-
-  // Terjemahkan alasan 403 KHUSUS untuk commentThreads.insert, berdasarkan reason sungguhan dari Google
-  // (dokumentasi resmi: commentsDisabled, forbidden, ineligibleAccount) -- bukan tebakan tetap.
-  function describeCommentError(status, bodyText){
-    var c = classifyApiError(status, bodyText);
-    if (c.quota) return "kuota habis";
-    if (status !== 403) return "gagal (" + status + ")";
-    if (c.reasons.indexOf("commentsDisabled") !== -1) return "ditolak (403 commentsDisabled): kolom komentar video ini memang dimatikan";
-    if (c.reasons.indexOf("ineligibleAccount") !== -1) return "ditolak (403 ineligibleAccount): akun Google ini belum digabung (merged) dengan Google Account biasa, YouTube mewajibkan itu untuk menulis komentar. Cek di myaccount.google.com/youtube apakah akun ini masih pakai channel lama (legacy/brand account belum digabung)";
-    if (c.reasons.indexOf("forbidden") !== -1) return "ditolak (403 forbidden): permintaan tidak diotorisasi dengan benar (bukan soal kolom komentar dimatikan). Coba 'Login ulang' akun ini, mungkin izin/scope token sudah tidak berlaku";
-    return "ditolak (403" + (c.reasons.length ? " " + c.reasons.join(",") : "") + "): " + bodyText.slice(0, 160);
+    return { quota: quota, auth: auth, uploadLimit: uploadLimit };
   }
 
   var UPLOAD_LIMIT_HINT = "Channel ini kena BATAS UPLOAD harian dari YouTube (uploadLimitExceeded). Ini batas per channel, bukan kuota API, jadi menambah Client ID tidak membantu. Biasanya reset sekitar 24 jam; verifikasi channel lewat youtube.com/verify (telepon) umumnya menaikkan batasnya. Alternatif: pakai mode Jadwal Live.";
@@ -2691,7 +2469,7 @@
 
       // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM 5 detik -> videos.insert.
       // Mode live: render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag). Callback hasil SAMA untuk keduanya.
-      var makeAsset = appMode === "live" ? renderThumbnailForRow : renderVideoForRow;
+      var makeAsset = appMode === "live" ? function(row, cb){ cb(null, null); } : renderVideoForRow;
       makeAsset(row, function(renderErr, blob){
         if (renderErr){
           if (appMode === "live"){
@@ -2708,7 +2486,7 @@
           }
         }
         var sender = appMode === "live" ? createLiveEvent : uploadOneEvent;
-        sender(row, acc.token, acc.channelId, blob, function(res){
+        sender(row, acc.token, blob, function(res){
           if (res.skipped){
             row.status = "skip";
             row.message = res.error;
@@ -2718,7 +2496,6 @@
           } else if (res.ok){
             row.status = "sukses";
             row.videoId = res.videoId;
-            if (res.commentPosted) row.commentPosted = true;
             row.message = appMode === "live" ? (res.warnings && res.warnings.length ? "Jadwal live dibuat, tapi: " + res.warnings.join("; ") : "Jadwal live dibuat") : "Sukses diupload";
             row.uploadedVia = acc.channelTitle || acc.email;
             row.mode = appMode;
@@ -2830,11 +2607,6 @@
   el.imageFileInput.addEventListener("change", function(e){ addUserImages(e.target.files); e.target.value = ""; });
   el.clearImageBtn.addEventListener("click", clearUserImage);
   el.overlayTitleChk.addEventListener("change", renderAssetPreview);
-  el.noTextThumbChk.addEventListener("change", renderAssetPreview);
-  el.customThumbTextInput.addEventListener("input", renderAssetPreview);
-  el.thumbTextColorInput.addEventListener("input", renderAssetPreview);
-  el.thumbFontSelect.addEventListener("change", renderAssetPreview);
-  el.thumbBgStyleSelect.addEventListener("change", renderAssetPreview);
 
   el.selectAllChk.addEventListener("change", function(){
     var checked = this.checked;
@@ -2849,7 +2621,6 @@
   });
   el.downloadLogBtn.addEventListener("click", downloadLog);
   el.fixThumbsBtn.addEventListener("click", retryFailedThumbnails);
-  el.fixCommentsBtn.addEventListener("click", retryFailedComments);
   el.downloadTemplateBtn.addEventListener("click", downloadCsvTemplate);
 
   // ================= INIT =================
@@ -2888,7 +2659,6 @@
         name: a.name || null,
         picture: null,
         channelTitle: a.channelTitle || null,
-        channelId: a.channelId || null,
         // usedCount hanya berlaku di HARI (Pasifik) yang sama: kuota Google sudah reset, jadi hitungan hari lain dibuang.
         usedCount: (a.usedDay === todayKey ? (a.usedCount || 0) : 0),
         usedDay: todayKey
