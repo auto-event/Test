@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Obot CS v4.8 (Vanilla JS)</title>
+<title>YouTube Auto</title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Obot CS v4.8</h1>
+        <h1>YouTube By Jhony</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -262,13 +262,13 @@
   <!-- SECTION 3: GAMBAR VIDEO 5 DETIK -->
   <section>
     <div class="sec-head">
-      <div class="sec-head-left"><div class="num-badge">3</div><h2>Gambar Video (5 detik)</h2></div>
+      <div class="sec-head-left"><div class="num-badge">3</div><h2>Gambar Video (1 detik)</h2></div>
       <span class="tag-pill" id="imgModePill">Mode: desain otomatis</span>
     </div>
     <div class="sec-body">
       <div class="note-box" style="margin-bottom:14px;">
-        <b>Mode Video:</b> tiap event di-render jadi <b>video WebM 5 detik</b> dari gambar (1280&times;720); thumbnail otomatis diambil YouTube dari frame video.<br>
-        <b>Mode Jadwal Live:</b> gambar yang dipilih dipakai sebagai <b>thumbnail JPEG</b> (dijaga &lt; 2 MB) lewat <code class="inline">thumbnails.set</code>; tidak ada video yang dirender.<br>
+        <b>Mode Video:</b> tiap event di-render jadi <b>video WebM 1 detik</b> dari gambar (1280&times;720) supaya upload lebih cepat; thumbnail otomatis diambil YouTube dari frame video.<br>
+        <b>Mode Jadwal Live:</b> selama toggle <b>"Aktifkan thumbnail custom"</b> di bawah menyala, gambar yang dipilih dipakai sebagai <b>thumbnail JPEG</b> (dijaga &lt; 2 MB) lewat <code class="inline">thumbnails.set</code>; matikan toggle untuk pakai thumbnail default YouTube. Tidak ada video yang dirender.<br>
         &bull; <b>Tanpa upload gambar:</b> desain otomatis dari judul + jadwal tiap event (beda-beda per event).<br>
         &bull; <b>Upload 1 gambar:</b> gambar itu dipakai sama untuk semua event.<br>
         &bull; <b>Upload &gt;1 gambar:</b> gambar dibagi <b>bergilir (round-robin)</b> ke tiap event sesuai urutan di tabel, supaya thumbnail tidak sama semua. Contoh 3 gambar &amp; 10 event: gambar 1,2,3,1,2,3,1,2,3,1.
@@ -282,8 +282,12 @@
 
       <div id="imageGallery" style="display:none; flex-wrap:wrap; gap:10px; margin-bottom:12px;"></div>
 
+      <label class="checkbox-lbl" id="useThumbWrap" style="display:none;margin-bottom:12px;">
+        <input type="checkbox" id="useThumbChk" checked> <b>Aktifkan thumbnail custom untuk Jadwal Live</b> (kirim lewat <code class="inline">thumbnails.set</code>). Matikan untuk pakai thumbnail default YouTube.
+      </label>
+
       <label class="checkbox-lbl" id="overlayWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload
+        <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload (judul tampil di thumbnail)
       </label>
 
       <div class="preview-assets" id="assetPreview"></div>
@@ -495,7 +499,7 @@
   // Default "Limit/akun" mengikuti kuota harian per Client ID sesuai mode: 66 (live) / 100 (video).
   // saveState/restoreState di bawah bisa menimpa ini kalau ada sesi tersimpan (dan mematikan limitAutoManaged).
   limitPerAccount = eventsPerDayPerClient(appMode);
-  var VIDEO_SECONDS = 5;
+  var VIDEO_SECONDS = 1;   // diperpendek dari 5s -> 1s: render & upload jauh lebih cepat, tetap valid buat "video" pembuka jadwal
   var VIDEO_W = 1280, VIDEO_H = 720;
   // Galeri gambar upload user. Array kosong = mode desain otomatis.
   // Tiap item: { img: HTMLImageElement, url: object URL, name: nama file }
@@ -536,6 +540,8 @@
     imageGallery: document.getElementById("imageGallery"),
     overlayWrap: document.getElementById("overlayWrap"),
     overlayTitleChk: document.getElementById("overlayTitleChk"),
+    useThumbWrap: document.getElementById("useThumbWrap"),
+    useThumbChk: document.getElementById("useThumbChk"),
     imgModePill: document.getElementById("imgModePill"),
     assetPreview: document.getElementById("assetPreview"),
 
@@ -608,10 +614,11 @@
         'Biaya per event <b>150 unit</b> (jadwal 50 + thumbnail 50 + tag 50) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
         '<b>Syarat:</b> live streaming harus <b>aktif</b> di channel (verifikasi telepon, aktivasi pertama bisa sampai 24 jam) dan channel harus terverifikasi untuk thumbnail. ' +
         'Jadwal harus di masa depan dan &ldquo;cukup dekat&rdquo; (batas Google tidak dipublikasikan, kalau ditolak coba tanggal lebih dekat). Render video tidak dipakai.'
-      : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 5 detik lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
+      : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 1 detik (dipercepat dari 5 detik) lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
         'Tidak butuh live streaming aktif dan tidak butuh thumbnail terpisah.';
     var pill = document.getElementById("imgModePill");
     if (pill) pill.textContent = (userImages.length ? "Mode: gambar upload (" + userImages.length + ")" : "Mode: desain otomatis") + (live ? " (thumbnail)" : " (video)");
+    el.useThumbWrap.style.display = live ? "flex" : "none";
     updateUploadBtnState();
   }
   function setMode(m){
@@ -1916,7 +1923,7 @@
     } catch (e){ cb("Gagal membuat thumbnail: " + (e.message || e)); }
   }
 
-  // Render satu video WebM 5 detik dari canvas. cb(err, blob).
+  // Render satu video WebM (VIDEO_SECONDS, default 1 detik) dari canvas. cb(err, blob).
   function renderVideoForRow(row, cb){
     if (!isRecorderSupported()){
       cb("Browser ini tidak mendukung MediaRecorder/captureStream (coba Chrome/Edge/Firefox desktop atau Android).");
@@ -2039,6 +2046,7 @@
   function refreshImageUi(){
     el.clearImageBtn.style.display = userImages.length ? "block" : "none";
     el.overlayWrap.style.display = userImages.length ? "flex" : "none";
+    el.useThumbWrap.style.display = (appMode === "live") ? "flex" : "none";
     el.imgModePill.textContent = (userImages.length ? "Mode: gambar upload (" + userImages.length + ")" : "Mode: desain otomatis") + (appMode === "live" ? " (thumbnail)" : " (video)");
     renderImageGallery();
     renderAssetPreview();
@@ -2456,7 +2464,7 @@
       renderEventsTable();
       log("[" + (idx+1) + "/" + targets.length + "] Akun: " + (acc.channelTitle || acc.email || "akun " + (activeAccountIndex+1)) + " -> Render & upload: " + row.title + " @ " + row.date + " " + row.time + " " + timeLabel(row), "info");
 
-      // Cek tanggal lewat DULU sebelum buang 5 detik untuk render video.
+      // Cek tanggal lewat DULU sebelum buang waktu render video.
       var pubUtc = rowUtcIso(row);
       if (!pubUtc || isPastUtc(pubUtc)){
         row.status = pubUtc ? "skip" : "gagal";
@@ -2467,9 +2475,12 @@
         return;
       }
 
-      // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM 5 detik -> videos.insert.
-      // Mode live: render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag). Callback hasil SAMA untuk keduanya.
-      var makeAsset = appMode === "live" ? function(row, cb){ cb(null, null); } : renderVideoForRow;
+      // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM (VIDEO_SECONDS) -> videos.insert.
+      // Mode live: kalau toggle "thumbnail custom" nyala, render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag).
+      // Kalau toggle mati, blob dikirim null -> thumbnails.set dilewati -> YouTube pakai thumbnail default-nya sendiri.
+      var makeAsset = appMode === "live"
+        ? (el.useThumbChk.checked ? renderThumbnailForRow : function(row, cb){ cb(null, null); })
+        : renderVideoForRow;
       makeAsset(row, function(renderErr, blob){
         if (renderErr){
           if (appMode === "live"){
@@ -2607,6 +2618,7 @@
   el.imageFileInput.addEventListener("change", function(e){ addUserImages(e.target.files); e.target.value = ""; });
   el.clearImageBtn.addEventListener("click", clearUserImage);
   el.overlayTitleChk.addEventListener("change", renderAssetPreview);
+  el.useThumbChk.addEventListener("change", renderAssetPreview);
 
   el.selectAllChk.addEventListener("change", function(){
     var checked = this.checked;
