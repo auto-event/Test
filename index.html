@@ -1503,7 +1503,7 @@
       try {
         tokenClients[cid] = google.accounts.oauth2.initTokenClient({
           client_id: cid,
-          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
           callback: function(resp){
             if (resp.access_token){
               // Hasil dari percobaan perpanjangan otomatis (silent, prompt:"")?
