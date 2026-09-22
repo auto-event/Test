@@ -2217,12 +2217,9 @@
                   setTimeout(tryOnce, delayMs);
                   return;
                 }
-                var c4 = classifyApiError(r.status, t);
                 commentOk = false;
-                if (c4.quota) warnings.push("komentar: kuota habis");
-                else if (r.status === 403) warnings.push("komentar ditolak (403, kolom komentar video ini mungkin dimatikan)");
-                else if (r.status === 429) warnings.push("komentar masih kena rate limit (429) setelah " + MAX_ATTEMPTS + "x coba");
-                else warnings.push("komentar gagal (" + r.status + ")");
+                if (r.status === 429) warnings.push("komentar masih kena rate limit (429) setelah " + MAX_ATTEMPTS + "x coba");
+                else warnings.push("komentar " + describeCommentError(r.status, t));
                 next();
               });
             }).catch(function(e){ commentOk = false; warnings.push("komentar: " + (e.message || e)); next(); });
@@ -2318,8 +2315,7 @@
     }).then(function(r){
       if (r.ok){ cb(null); return; }
       return r.text().then(function(t){
-        var c = classifyApiError(r.status, t);
-        cb(c.quota ? "kuota habis" : (r.status === 403 ? "ditolak (403, kolom komentar video ini mungkin dimatikan)" : "gagal (" + r.status + ")"));
+        cb(describeCommentError(r.status, t));
       });
     }).catch(function(e){ cb(e.message || String(e)); });
   }
@@ -2454,7 +2450,19 @@
     // fallback: kalau body bukan JSON tapi jelas menyebut quota
     if (!quota && status === 403 && reasons.length === 0 && /quota/i.test(bodyText)) quota = true;
     var auth = status === 401;
-    return { quota: quota, auth: auth, uploadLimit: uploadLimit };
+    return { quota: quota, auth: auth, uploadLimit: uploadLimit, reasons: reasons };
+  }
+
+  // Terjemahkan alasan 403 KHUSUS untuk commentThreads.insert, berdasarkan reason sungguhan dari Google
+  // (dokumentasi resmi: commentsDisabled, forbidden, ineligibleAccount) -- bukan tebakan tetap.
+  function describeCommentError(status, bodyText){
+    var c = classifyApiError(status, bodyText);
+    if (c.quota) return "kuota habis";
+    if (status !== 403) return "gagal (" + status + ")";
+    if (c.reasons.indexOf("commentsDisabled") !== -1) return "ditolak (403 commentsDisabled): kolom komentar video ini memang dimatikan";
+    if (c.reasons.indexOf("ineligibleAccount") !== -1) return "ditolak (403 ineligibleAccount): akun Google ini belum digabung (merged) dengan Google Account biasa, YouTube mewajibkan itu untuk menulis komentar. Cek di myaccount.google.com/youtube apakah akun ini masih pakai channel lama (legacy/brand account belum digabung)";
+    if (c.reasons.indexOf("forbidden") !== -1) return "ditolak (403 forbidden): permintaan tidak diotorisasi dengan benar (bukan soal kolom komentar dimatikan). Coba 'Login ulang' akun ini, mungkin izin/scope token sudah tidak berlaku";
+    return "ditolak (403" + (c.reasons.length ? " " + c.reasons.join(",") : "") + "): " + bodyText.slice(0, 160);
   }
 
   var UPLOAD_LIMIT_HINT = "Channel ini kena BATAS UPLOAD harian dari YouTube (uploadLimitExceeded). Ini batas per channel, bukan kuota API, jadi menambah Client ID tidak membantu. Biasanya reset sekitar 24 jam; verifikasi channel lewat youtube.com/verify (telepon) umumnya menaikkan batasnya. Alternatif: pakai mode Jadwal Live.";
