@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Jhony v4.9 </title>
+<title>YouTube Jhony </title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -133,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube Jhony v4.9</h1>
+        <h1>YouTube Jhony v5.0</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -2202,15 +2202,13 @@
         // nunggu stream benar-benar live. Retry otomatis kalau kena rate limit 429 (sama seperti thumbnail).
         var stepComment = function(next){
           if (!row.commentText){ next(); return; }
-          if (!channelId){
-            // Akun ini tersimpan sebelum channelId ikut disimpan (data lama) -> ambil sekali lalu lanjut.
-            fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", { headers: { Authorization: "Bearer " + token } })
-              .then(function(r2){ return r2.json(); })
-              .then(function(d2){ channelId = d2.items && d2.items[0] && d2.items[0].id; sendComment(next); })
-              .catch(function(){ sendComment(next); });
-            return;
-          }
-          sendComment(next);
+          // PENTING: channelId diambil dari VIDEO/broadcast-nya sendiri (videos.list), BUKAN channels?mine=true.
+          // channels?mine=true bisa salah kalau akun Google punya >1 channel/Brand Account -> commentThreads.insert
+          // ditolak 403 forbidden walau scope & login sudah benar, karena channelId-nya bukan pemilik video ini.
+          fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + videoId, { headers: { Authorization: "Bearer " + token } })
+            .then(function(r2){ return r2.json(); })
+            .then(function(d2){ channelId = (d2.items && d2.items[0] && d2.items[0].snippet && d2.items[0].snippet.channelId) || channelId; sendComment(next); })
+            .catch(function(){ sendComment(next); });
         };
         var sendComment = function(next){
           var attempt = 0, MAX_ATTEMPTS = 3;
@@ -2322,22 +2320,21 @@
   // Post 1 komentar ke video yang sudah ada (dipakai fitur "Perbaiki Komentar Gagal"), tanpa retry-loop 429
   // internal (kesempatan retry manual ada di tombolnya sendiri, dipanggil lagi kalau user klik ulang).
   function postCommentWithRetry(videoId, token, channelId, text, title, cb){
-    var send = function(cid){
+    // PENTING: selalu ambil channelId dari VIDEO/broadcast-nya sendiri (videos.list), BUKAN channels?mine=true.
+    // channels?mine=true bisa salah kalau akun Google punya >1 channel/Brand Account, bikin commentThreads.insert
+    // ditolak 403 forbidden walau login & scope sudah benar (channelId-nya bukan pemilik video ini).
+    fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet&id=" + videoId, { headers: { Authorization: "Bearer " + token } })
+      .then(function(r2){ return r2.json(); })
+      .then(function(d2){ send((d2.items && d2.items[0] && d2.items[0].snippet && d2.items[0].snippet.channelId) || channelId); })
+      .catch(function(){ send(channelId); });
+    function send(cid){
       fetch("https://www.googleapis.com/youtube/v3/commentThreads?part=snippet", {
         method: "POST",
         headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json; charset=UTF-8" },
         // channelId WAJIB diisi (dokumentasi resmi Google): channel pemilik video, dalam kasus ini channel akun yang sama.
         body: JSON.stringify({ snippet: { channelId: cid, videoId: videoId, topLevelComment: { snippet: { textOriginal: text } } } })
       }).then(handle).catch(function(e){ cb(e.message || String(e)); });
-    };
-    if (!channelId){
-      fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", { headers: { Authorization: "Bearer " + token } })
-        .then(function(r2){ return r2.json(); })
-        .then(function(d2){ send(d2.items && d2.items[0] && d2.items[0].id); })
-        .catch(function(){ send(null); });
-      return;
     }
-    send(channelId);
     function handle(r){
       if (r.ok){ cb(null); return; }
       return r.text().then(function(t){
