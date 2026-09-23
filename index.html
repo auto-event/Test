@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>YouTube Auto</title>
+<title>YouTube Obot CS v4.8 (Vanilla JS)</title>
 <meta name="theme-color" content="#0f0f0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -101,9 +101,7 @@
   .empty-icon{width:48px;height:48px;margin:0 auto 12px;border-radius:12px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--muted);}
   .empty-state p{font-size:13px;color:var(--muted);margin:0;}
   .toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:14px;}
-  .checkbox-lbl{display:flex;align-items:flex-start;gap:8px;font-size:12px;cursor:pointer;}
-  .checkbox-lbl input[type=checkbox]{flex-shrink:0;margin-top:2px;}
-  .checkbox-lbl span{flex:1;min-width:0;line-height:1.6;}
+  .checkbox-lbl{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;}
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#fff;color:#000;padding:10px 18px;border-radius:999px;font-size:12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:50;display:none;}
   code.inline{background:var(--bg);border:1px solid var(--border);padding:1px 6px;border-radius:6px;font-size:11px;}
   a{color:inherit;}
@@ -135,7 +133,7 @@
     <div class="brand">
       <div class="brand-icon">&#9654;</div>
       <div>
-        <h1>YouTube By Jhony</h1>
+        <h1>YouTube Obot CS v4.8</h1>
         <p>Bulk jadwal dari Excel/CSV &bull; WIB &rarr; YouTube (upload video <b>atau</b> jadwal live)</p>
       </div>
     </div>
@@ -180,7 +178,6 @@
       <div class="field" style="margin-top:18px;">
         <label>Multi-Akun &amp; Router Otomatis</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <select id="addAccountClientSelect" style="flex:1;min-width:140px;padding:11px 8px;"></select>
           <button class="btn-ghost" id="reloginAllBtn" style="display:none;flex-shrink:0;">Login ulang yang habis</button>
           <button class="btn-primary" id="addAccountBtn" style="flex:1;min-width:140px;">+ TAMBAH AKUN</button>
           <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap;">
@@ -190,7 +187,8 @@
           </div>
         </div>
         <div class="note-box" style="margin-top:10px;">
-          Pilih dulu <b>Client ID</b> di dropdown, lalu klik <b>Tambah Akun</b>: muncul popup pilih akun Google (selalu tampil layar pilih akun, tidak auto-skip).
+          Klik langsung <b>Tambah Akun</b>, tidak perlu pilih Client ID sama sekali &mdash; tool otomatis pakai <b>Client ID #1 dulu sampai habis/penuh</b> (semua akunnya kena limit atau kuota project itu habis), baru pindah ke Client ID #2, dst, sesuai urutan kamu tambahin di daftar Client ID.
+          Muncul popup pilih akun Google (selalu tampil layar pilih akun, tidak auto-skip).
           Tool <b>tidak bisa login sendiri</b> hanya dari email; tiap akun tetap perlu satu kali persetujuan di popup, tapi Client ID yang dipakai dicatat otomatis.
           Akun yang sama tidak bisa ditambahkan dua kali di Client ID yang sama.
           Kalau 1 akun Google punya beberapa Brand Account/channel, <b>switch dulu manual</b> di studio.youtube.com ke channel yang dimaksud
@@ -264,13 +262,13 @@
   <!-- SECTION 3: GAMBAR VIDEO 5 DETIK -->
   <section>
     <div class="sec-head">
-      <div class="sec-head-left"><div class="num-badge">3</div><h2>Gambar Video (1 detik)</h2></div>
+      <div class="sec-head-left"><div class="num-badge">3</div><h2>Gambar Video (5 detik)</h2></div>
       <span class="tag-pill" id="imgModePill">Mode: desain otomatis</span>
     </div>
     <div class="sec-body">
       <div class="note-box" style="margin-bottom:14px;">
-        <b>Mode Video:</b> tiap event di-render jadi <b>video WebM 1 detik</b> dari gambar (1280&times;720) supaya upload lebih cepat; thumbnail otomatis diambil YouTube dari frame video.<br>
-        <b>Mode Jadwal Live:</b> selama toggle <b>"Aktifkan thumbnail custom"</b> di bawah menyala, gambar yang dipilih dipakai sebagai <b>thumbnail JPEG</b> (dijaga &lt; 2 MB) lewat <code class="inline">thumbnails.set</code>; matikan toggle untuk pakai thumbnail default YouTube. Tidak ada video yang dirender.<br>
+        <b>Mode Video:</b> tiap event di-render jadi <b>video WebM 5 detik</b> dari gambar (1280&times;720); thumbnail otomatis diambil YouTube dari frame video.<br>
+        <b>Mode Jadwal Live:</b> gambar yang dipilih dipakai sebagai <b>thumbnail JPEG</b> (dijaga &lt; 2 MB) lewat <code class="inline">thumbnails.set</code>; tidak ada video yang dirender.<br>
         &bull; <b>Tanpa upload gambar:</b> desain otomatis dari judul + jadwal tiap event (beda-beda per event).<br>
         &bull; <b>Upload 1 gambar:</b> gambar itu dipakai sama untuk semua event.<br>
         &bull; <b>Upload &gt;1 gambar:</b> gambar dibagi <b>bergilir (round-robin)</b> ke tiap event sesuai urutan di tabel, supaya thumbnail tidak sama semua. Contoh 3 gambar &amp; 10 event: gambar 1,2,3,1,2,3,1,2,3,1.
@@ -284,22 +282,9 @@
 
       <div id="imageGallery" style="display:none; flex-wrap:wrap; gap:10px; margin-bottom:12px;"></div>
 
-      <label class="checkbox-lbl" id="useThumbWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="useThumbChk" checked> <span><b>Aktifkan thumbnail custom untuk Jadwal Live</b> (kirim lewat <code class="inline">thumbnails.set</code>). Matikan untuk pakai thumbnail default YouTube.</span>
-      </label>
-
       <label class="checkbox-lbl" id="overlayWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="overlayTitleChk"> <span>Tempel judul event di atas gambar upload (judul tampil di thumbnail)</span>
+        <input type="checkbox" id="overlayTitleChk"> Tempel judul event di atas gambar upload
       </label>
-
-      <label class="checkbox-lbl" id="autoNoTextWrap" style="display:none;margin-bottom:12px;">
-        <input type="checkbox" id="autoNoTextChk"> <span>Thumbnail polos tanpa teks (desain otomatis tanpa judul &amp; tanggal)</span>
-      </label>
-
-      <div class="field" id="customTextWrap">
-        <label for="customThumbTextInput">Teks custom di thumbnail (opsional)</label>
-        <input type="text" id="customThumbTextInput" placeholder="Kosongkan untuk pakai judul event apa adanya">
-      </div>
 
       <div class="preview-assets" id="assetPreview"></div>
     </div>
@@ -510,7 +495,7 @@
   // Default "Limit/akun" mengikuti kuota harian per Client ID sesuai mode: 66 (live) / 100 (video).
   // saveState/restoreState di bawah bisa menimpa ini kalau ada sesi tersimpan (dan mematikan limitAutoManaged).
   limitPerAccount = eventsPerDayPerClient(appMode);
-  var VIDEO_SECONDS = 1;   // diperpendek dari 5s -> 1s: render & upload jauh lebih cepat, tetap valid buat "video" pembuka jadwal
+  var VIDEO_SECONDS = 5;
   var VIDEO_W = 1280, VIDEO_H = 720;
   // Galeri gambar upload user. Array kosong = mode desain otomatis.
   // Tiap item: { img: HTMLImageElement, url: object URL, name: nama file }
@@ -525,7 +510,6 @@
     clientIdInput: document.getElementById("clientIdInput"),
     saveClientIdBtn: document.getElementById("saveClientIdBtn"),
     clientIdList: document.getElementById("clientIdList"),
-    addAccountClientSelect: document.getElementById("addAccountClientSelect"),
     reloginAllBtn: document.getElementById("reloginAllBtn"),
     modeVideoBtn: document.getElementById("modeVideoBtn"),
     modeLiveBtn: document.getElementById("modeLiveBtn"),
@@ -551,11 +535,6 @@
     imageGallery: document.getElementById("imageGallery"),
     overlayWrap: document.getElementById("overlayWrap"),
     overlayTitleChk: document.getElementById("overlayTitleChk"),
-    autoNoTextWrap: document.getElementById("autoNoTextWrap"),
-    autoNoTextChk: document.getElementById("autoNoTextChk"),
-    customThumbTextInput: document.getElementById("customThumbTextInput"),
-    useThumbWrap: document.getElementById("useThumbWrap"),
-    useThumbChk: document.getElementById("useThumbChk"),
     imgModePill: document.getElementById("imgModePill"),
     assetPreview: document.getElementById("assetPreview"),
 
@@ -628,11 +607,10 @@
         'Biaya per event <b>150 unit</b> (jadwal 50 + thumbnail 50 + tag 50) &asymp; <b>' + eventsPerDayPerClient("live") + ' event/hari per Client ID</b>. ' +
         '<b>Syarat:</b> live streaming harus <b>aktif</b> di channel (verifikasi telepon, aktivasi pertama bisa sampai 24 jam) dan channel harus terverifikasi untuk thumbnail. ' +
         'Jadwal harus di masa depan dan &ldquo;cukup dekat&rdquo; (batas Google tidak dipublikasikan, kalau ditolak coba tanggal lebih dekat). Render video tidak dipakai.'
-      : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 1 detik (dipercepat dari 5 detik) lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
+      : '<b>Mode Upload Video.</b> Tiap event di-render jadi video WebM 5 detik lalu diupload. Kuota: <b>' + eventsPerDayPerClient("video") + ' upload/hari per Client ID</b> (bucket sendiri, 1 unit/upload). ' +
         'Tidak butuh live streaming aktif dan tidak butuh thumbnail terpisah.';
     var pill = document.getElementById("imgModePill");
     if (pill) pill.textContent = (userImages.length ? "Mode: gambar upload (" + userImages.length + ")" : "Mode: desain otomatis") + (live ? " (thumbnail)" : " (video)");
-    el.useThumbWrap.style.display = live ? "flex" : "none";
     updateUploadBtnState();
   }
   function setMode(m){
@@ -1369,7 +1347,6 @@
     el.pillClientId.className = "pill" + (clientIds.length ? " ok" : "");
 
     el.addAccountBtn.disabled = !gsiReady || clientIds.length === 0;
-    el.addAccountClientSelect.disabled = clientIds.length === 0;
 
     var activeCount = accounts.length;
     if (activeCount > 0){
@@ -1664,14 +1641,23 @@
         btn.addEventListener("click", function(){ removeClientId(this.getAttribute("data-cid")); });
       });
     }
-    // isi dropdown pilihan Client ID untuk Tambah Akun
-    var prev = el.addAccountClientSelect.value;
-    var opts = "";
-    clientIds.forEach(function(cid, i){
-      opts += '<option value="' + escapeHtml(cid) + '">Client #' + (i+1) + ' (' + escapeHtml(shortClientId(cid)) + ') - ' + accountsOfClient(cid).length + ' akun</option>';
+  }
+
+  // Pilih Client ID otomatis: pakai urutan tetap (#1, #2, dst) — habiskan Client ID pertama dulu
+  // (semua akun & kuotanya) baru pindah ke Client ID berikutnya kalau yang pertama sudah penuh/bermasalah.
+  function pickAutoClientId(){
+    if (clientIds.length === 0) return "";
+    var best = null;
+    clientIds.forEach(function(cid){
+      var q = getClientQuota(cid);
+      var left = appMode === "live" ? Math.max(0, COST.DAILY_UNITS - q.liveUnits) : Math.max(0, COST.VIDEO_BUCKET - q.videoSlots);
+      if (left <= 0) return;   // Client ID ini kuotanya sudah habis hari ini, lewati, cari yang berikutnya
+      var stillOk = accountsOfClient(cid).some(function(a){ return !a.expired && !a.clientQuotaFull; });
+      if (accountsOfClient(cid).length > 0 && !stillOk) return;   // semua akun di Client ID ini bermasalah (token habis/kuota penuh), lewati
+      if (best === null){ best = cid; }   // ambil Client ID PERTAMA dalam urutan yang masih layak dipakai
     });
-    el.addAccountClientSelect.innerHTML = opts;
-    if (prev && clientIds.indexOf(prev) !== -1) el.addAccountClientSelect.value = prev;
+    if (best === null) best = clientIds[0];   // fallback: semua penuh, tetap kembalikan yang pertama biar user lihat pesan errornya
+    return best;
   }
 
   // ================= LOGIN ULANG =================
@@ -1770,12 +1756,13 @@
 
   function doAddAccount(){
     if (clientIds.length === 0){ showToast("Tambah Client ID dulu bos"); return; }
-    var cid = el.addAccountClientSelect.value || clientIds[0];
+    var cid = pickAutoClientId();
+    if (!cid){ showToast("Tambah Client ID dulu bos"); return; }
     var tc = tokenClients[cid];
     if (!tc){ setupTokenClientIfPossible(); tc = tokenClients[cid]; }
     if (!tc){ showToast("GSI belum siap, cek internet"); return; }
     markManualLogin();   // batalkan perpanjangan otomatis yang tertunda & tahan yang baru
-    log("Membuka popup login memakai Client ID " + shortClientId(cid) + "...", "info");
+    log("Membuka popup login memakai Client ID " + shortClientId(cid) + " (dipilih otomatis)...", "info");
     tc.requestAccessToken({ prompt: "select_account" });
   }
 
@@ -1878,8 +1865,6 @@
   function drawFrame(ctx, row){
     var W = VIDEO_W, H = VIDEO_H;
     var img = pickImageForRow(row);
-    var customText = (el.customThumbTextInput && el.customThumbTextInput.value.trim()) || "";
-    var titleText = customText || (row ? row.title : "Judul Event");
     if (img){
       // cover: isi penuh 16:9 tanpa gepeng
       ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
@@ -1893,7 +1878,7 @@
         ctx.fillStyle = grad; ctx.fillRect(0, H * 0.55, W, H * 0.45);
         ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
         ctx.font = "bold 54px sans-serif";
-        var ls = wrapText(ctx, titleText, W - 160, 2);
+        var ls = wrapText(ctx, row.title, W - 160, 2);
         var y = H - 60 - (ls.length - 1) * 62;
         ls.forEach(function(t, i){ ctx.fillText(t, W / 2, y + i * 62); });
       }
@@ -1905,12 +1890,11 @@
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 18, H);
     ctx.fillRect(0, H - 14, W, 14);
-    if (el.autoNoTextChk && el.autoNoTextChk.checked) return;
     ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#ff4d4d"; ctx.font = "bold 34px sans-serif";
     ctx.fillText("JADWAL TAYANG", 90, 130);
     ctx.fillStyle = "#ffffff"; ctx.font = "bold 78px sans-serif";
-    var lines = wrapText(ctx, titleText, W - 180, 3);
+    var lines = wrapText(ctx, row ? row.title : "Judul Event", W - 180, 3);
     var y0 = 250;
     lines.forEach(function(t, i){ ctx.fillText(t, 90, y0 + i * 92); });
     if (row){
@@ -1940,7 +1924,7 @@
     } catch (e){ cb("Gagal membuat thumbnail: " + (e.message || e)); }
   }
 
-  // Render satu video WebM (VIDEO_SECONDS, default 1 detik) dari canvas. cb(err, blob).
+  // Render satu video WebM 5 detik dari canvas. cb(err, blob).
   function renderVideoForRow(row, cb){
     if (!isRecorderSupported()){
       cb("Browser ini tidak mendukung MediaRecorder/captureStream (coba Chrome/Edge/Firefox desktop atau Android).");
@@ -2063,8 +2047,6 @@
   function refreshImageUi(){
     el.clearImageBtn.style.display = userImages.length ? "block" : "none";
     el.overlayWrap.style.display = userImages.length ? "flex" : "none";
-    el.autoNoTextWrap.style.display = userImages.length ? "none" : "flex";
-    el.useThumbWrap.style.display = (appMode === "live") ? "flex" : "none";
     el.imgModePill.textContent = (userImages.length ? "Mode: gambar upload (" + userImages.length + ")" : "Mode: desain otomatis") + (appMode === "live" ? " (thumbnail)" : " (video)");
     renderImageGallery();
     renderAssetPreview();
@@ -2482,7 +2464,7 @@
       renderEventsTable();
       log("[" + (idx+1) + "/" + targets.length + "] Akun: " + (acc.channelTitle || acc.email || "akun " + (activeAccountIndex+1)) + " -> Render & upload: " + row.title + " @ " + row.date + " " + row.time + " " + timeLabel(row), "info");
 
-      // Cek tanggal lewat DULU sebelum buang waktu render video.
+      // Cek tanggal lewat DULU sebelum buang 5 detik untuk render video.
       var pubUtc = rowUtcIso(row);
       if (!pubUtc || isPastUtc(pubUtc)){
         row.status = pubUtc ? "skip" : "gagal";
@@ -2493,12 +2475,9 @@
         return;
       }
 
-      // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM (VIDEO_SECONDS) -> videos.insert.
-      // Mode live: kalau toggle "thumbnail custom" nyala, render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag).
-      // Kalau toggle mati, blob dikirim null -> thumbnails.set dilewati -> YouTube pakai thumbnail default-nya sendiri.
-      var makeAsset = appMode === "live"
-        ? (el.useThumbChk.checked ? renderThumbnailForRow : function(row, cb){ cb(null, null); })
-        : renderVideoForRow;
+      // Satu langkah "hasilkan aset lalu kirim". Mode video: render WebM 5 detik -> videos.insert.
+      // Mode live: render JPEG thumbnail -> liveBroadcasts.insert (+ thumbnail + tag). Callback hasil SAMA untuk keduanya.
+      var makeAsset = appMode === "live" ? function(row, cb){ cb(null, null); } : renderVideoForRow;
       makeAsset(row, function(renderErr, blob){
         if (renderErr){
           if (appMode === "live"){
@@ -2636,9 +2615,6 @@
   el.imageFileInput.addEventListener("change", function(e){ addUserImages(e.target.files); e.target.value = ""; });
   el.clearImageBtn.addEventListener("click", clearUserImage);
   el.overlayTitleChk.addEventListener("change", renderAssetPreview);
-  el.autoNoTextChk.addEventListener("change", renderAssetPreview);
-  el.customThumbTextInput.addEventListener("input", renderAssetPreview);
-  el.useThumbChk.addEventListener("change", renderAssetPreview);
 
   el.selectAllChk.addEventListener("change", function(){
     var checked = this.checked;
