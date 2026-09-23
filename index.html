@@ -312,7 +312,11 @@
             <label class="checkbox-lbl"><input type="checkbox" id="selectAllChk" checked> Pilih semua</label>
             <span style="font-size:11px;color:var(--muted);" id="selectedCountLabel">0 dipilih</span>
           </div>
-          <button class="btn-primary" id="uploadAllBtn">UPLOAD EVENT KE YOUTUBE</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-primary" id="uploadAllBtn">UPLOAD EVENT KE YOUTUBE</button>
+            <button class="btn-ghost" id="pauseBtn" style="display:none;">&#9208; Jeda</button>
+            <button class="btn-ghost" id="stopBtn" style="display:none;color:#ff6b6b;">&#9632; Stop</button>
+          </div>
         </div>
 
         <button class="btn-ghost" id="fixThumbsBtn" style="display:none;width:100%;margin-bottom:14px;">Perbaiki Thumbnail Gagal</button>
@@ -504,6 +508,9 @@
   var renderingVideo = false;  // true selama satu video sedang di-render
 
   var running = false;
+  var paused = false;          // true = loop berhenti sejenak SETELAH event yang sedang berjalan selesai, state disimpan
+  var stopRequested = false;   // true = loop dihentikan penuh SETELAH event yang sedang berjalan selesai
+  var pausedResumeFn = null;   // fungsi untuk melanjutkan loop setelah jeda dilepas
 
   // ================= ELEMEN DOM =================
   var el = {
@@ -544,6 +551,8 @@
     selectAllChk: document.getElementById("selectAllChk"),
     selectedCountLabel: document.getElementById("selectedCountLabel"),
     uploadAllBtn: document.getElementById("uploadAllBtn"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    stopBtn: document.getElementById("stopBtn"),
     progressWrap: document.getElementById("progressWrap"),
     progressLabel: document.getElementById("progressLabel"),
     progressFill: document.getElementById("progressFill"),
@@ -1336,9 +1345,21 @@
     syncWakeLock();
     var selCount = Object.keys(selectedIds).filter(function(id){ return selectedIds[id]; }).length;
     el.uploadAllBtn.disabled = running || selCount === 0 || accounts.length === 0;
-    el.uploadAllBtn.textContent = running
-      ? (appMode === "live" ? "Membuat jadwal live..." : "Mengupload...")
-      : (appMode === "live" ? ("BUAT " + selCount + " JADWAL LIVE DI YOUTUBE") : ("UPLOAD " + selCount + " EVENT KE YOUTUBE"));
+    if (running){
+      el.uploadAllBtn.textContent = paused
+        ? "Dijeda..."
+        : (appMode === "live" ? "Membuat jadwal live..." : "Mengupload...");
+    } else {
+      el.uploadAllBtn.textContent = appMode === "live" ? ("BUAT " + selCount + " JADWAL LIVE DI YOUTUBE") : ("UPLOAD " + selCount + " EVENT KE YOUTUBE");
+    }
+    el.pauseBtn.style.display = running ? "inline-block" : "none";
+    el.pauseBtn.disabled = stopRequested;
+    el.pauseBtn.textContent = paused ? "\u25B6 Lanjutkan" : "\u23F8 Jeda";
+    el.stopBtn.style.display = running ? "inline-block" : "none";
+    if (!stopRequested){
+      el.stopBtn.disabled = false;
+      el.stopBtn.textContent = "\u25A0 Stop";
+    }
   }
 
   // ================= LOGIN GOOGLE MULTI-AKUN (GIS) =================
@@ -1624,13 +1645,12 @@
       var html = "";
       var totLeft = 0;
       clientIds.forEach(function(cid, i){
-        var n = accountsOfClient(cid).length;
         var q = getClientQuota(cid);
         var left = appMode === "live" ? Math.max(0, COST.DAILY_UNITS - q.liveUnits) : Math.max(0, COST.VIDEO_BUCKET - q.videoSlots);
         totLeft += left;
         html += '<div class="acc-card" style="padding:9px 12px;">' +
           '<div class="acc-info"><div class="acc-name mono" style="font-size:12px;">#' + (i+1) + ' &bull; ' + escapeHtml(shortClientId(cid)) + '</div>' +
-          '<div class="acc-sub">' + n + ' akun login &bull; Token: <b>' + fmtNum(left) + '</b></div></div>' +
+          '<div class="acc-sub">Token: <b>' + fmtNum(left) + '</b></div></div>' +
           '<button class="acc-remove" data-cid="' + escapeHtml(cid) + '" title="Hapus Client ID ini">&times;</button></div>';
       });
       if (clientIds.length > 1){
@@ -2416,6 +2436,8 @@
     function next(){
       if (idx >= targets.length){
         running = false;
+        paused = false;
+        stopRequested = false;
         updateUploadBtnState();
         renderAccountsList();
         showToast("Bulk upload selesai!");
@@ -2428,6 +2450,8 @@
       var acc = getNextAvailableAccount();
       if (!acc){
         running = false;
+        paused = false;
+        stopRequested = false;
         updateUploadBtnState();
         renderAccountsList();
         // Hitung PENYEBAB tiap akun tidak bisa dipakai, supaya pesannya tidak menyesatkan (token habis != kuota habis).
@@ -2569,6 +2593,28 @@
       renderClientIds();
       el.progressLabel.textContent = idx + "/" + targets.length;
       el.progressFill.style.width = (idx/targets.length*100) + "%";
+
+      if (stopRequested){
+        running = false;
+        stopRequested = false;
+        paused = false;
+        updateUploadBtnState();
+        renderAccountsList();
+        showToast("Bulk upload dihentikan");
+        log("Bulk upload DIHENTIKAN oleh user (" + idx + "/" + targets.length + " selesai). Sisa event tetap 'Ready', tinggal tekan tombol upload lagi kalau mau lanjut.", "error");
+        if (lastRun){ lastRun.finished = true; lastRun.reason = "dihentikan user"; lastRun.done = idx; }
+        saveStateNow();
+        return;
+      }
+      if (paused){
+        updateUploadBtnState();
+        log("Bulk upload DIJEDA (" + idx + "/" + targets.length + " selesai). Klik 'Lanjutkan' untuk melanjutkan.", "info");
+        if (lastRun){ lastRun.reason = "dijeda"; lastRun.done = idx; }
+        saveStateNow();
+        pausedResumeFn = function(){ bgTimeout(next, 0); };
+        return;
+      }
+
       // Jeda antar-event: dilebarkan khusus mode Live + ada thumbnail upload (thumbnails.set gampang kena rate limit 429
       // kalau ditembak beruntun cepat), supaya lebih longgar dan gak gampang ke-burst-limit lagi.
       var delayMs = (appMode === "live" && userImages.length) ? 2500 : 1000;
@@ -2622,6 +2668,42 @@
     renderEventsTable();
   });
   el.uploadAllBtn.addEventListener("click", runBulkCreate);
+  el.pauseBtn.addEventListener("click", function(){
+    if (!running) return;
+    paused = !paused;
+    if (!paused){
+      log("Bulk upload dilanjutkan.", "info");
+      updateUploadBtnState();
+      var fn = pausedResumeFn;
+      pausedResumeFn = null;
+      if (fn) fn();
+    } else {
+      updateUploadBtnState();
+    }
+  });
+  el.stopBtn.addEventListener("click", function(){
+    if (!running) return;
+    stopRequested = true;
+    if (paused){
+      // sudah dijeda (loop tidak jalan) -> hentikan langsung tanpa nunggu advance() berikutnya
+      paused = false;
+      var fn = pausedResumeFn;
+      pausedResumeFn = null;
+      if (fn) fn(); else {
+        running = false;
+        stopRequested = false;
+        updateUploadBtnState();
+        renderAccountsList();
+        showToast("Bulk upload dihentikan");
+        log("Bulk upload DIHENTIKAN oleh user.", "error");
+        saveStateNow();
+      }
+    } else {
+      log("Permintaan STOP diterima, akan berhenti setelah event yang sedang diproses selesai...", "info");
+      el.stopBtn.disabled = true;
+      el.stopBtn.textContent = "Menghentikan...";
+    }
+  });
   el.clearLogBtn.addEventListener("click", function(){
     el.logBody.innerHTML = "";
     logBuffer = [];
